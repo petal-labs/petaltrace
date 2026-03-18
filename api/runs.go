@@ -213,7 +213,7 @@ func (s *Server) handleGetSpans(w http.ResponseWriter, r *http.Request) {
 		spans = filtered
 	}
 
-	s.writeJSON(w, http.StatusOK, spans)
+	s.writeJSON(w, http.StatusOK, map[string]any{"spans": spans})
 }
 
 // handleGetSpan handles GET /api/runs/{id}/spans/{spanId}

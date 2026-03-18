@@ -56,14 +56,15 @@ func (s *Server) handleCostSummary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Calculate summary
+	// Calculate summary using internal maps
+	byWorkflowMap := make(map[string]*costGroupMap)
+	byProviderMap := make(map[string]*costGroupMap)
+	byModelMap := make(map[string]*costGroupMap)
+
 	summary := CostSummaryResponse{
-		Since:      since,
-		Until:      until,
-		TotalRuns:  len(runs),
-		ByWorkflow: make(map[string]CostGroup),
-		ByProvider: make(map[string]CostGroup),
-		ByModel:    make(map[string]CostGroup),
+		Since:     since,
+		Until:     until,
+		TotalRuns: len(runs),
 	}
 
 	for _, run := range runs {
@@ -79,28 +80,85 @@ func (s *Server) handleCostSummary(w http.ResponseWriter, r *http.Request) {
 		if wf == "" {
 			wf = "(unknown)"
 		}
-		g := summary.ByWorkflow[wf]
-		g.Runs++
-		g.Tokens += int64(run.TotalTokens.TotalTokens)
-		g.Cost += run.EstimatedCost.Total
-		summary.ByWorkflow[wf] = g
+		if byWorkflowMap[wf] == nil {
+			byWorkflowMap[wf] = &costGroupMap{}
+		}
+		byWorkflowMap[wf].Runs++
+		byWorkflowMap[wf].Tokens += int64(run.TotalTokens.TotalTokens)
+		byWorkflowMap[wf].Cost += run.EstimatedCost.Total
 
-		// By provider
-		for provider, cost := range run.EstimatedCost.ByProvider {
-			p := summary.ByProvider[provider]
-			p.Runs++
-			p.Cost += cost
-			summary.ByProvider[provider] = p
+		// Get LLM spans for provider/model breakdown
+		spans, err := s.store.GetSpansByKind(ctx, run.ID, store.SpanKindLLM)
+		if err != nil {
+			s.logger.Warn("failed to get LLM spans for run", "run_id", run.ID, "error", err)
+			continue
 		}
 
-		// By model
-		for model, cost := range run.EstimatedCost.ByModel {
-			m := summary.ByModel[model]
-			m.Runs++
-			m.Cost += cost
-			summary.ByModel[model] = m
+		for _, span := range spans {
+			if span.LLM == nil {
+				continue
+			}
+
+			provider := span.LLM.Provider
+			if provider == "" {
+				provider = "(unknown)"
+			}
+			if byProviderMap[provider] == nil {
+				byProviderMap[provider] = &costGroupMap{}
+			}
+			byProviderMap[provider].Runs++
+			byProviderMap[provider].Tokens += int64(span.LLM.Tokens.TotalTokens)
+			byProviderMap[provider].Cost += span.LLM.Tokens.CostEstimate
+
+			model := span.LLM.Model
+			if model == "" {
+				model = "(unknown)"
+			}
+			if byModelMap[model] == nil {
+				byModelMap[model] = &costGroupMap{}
+			}
+			byModelMap[model].Runs++
+			byModelMap[model].Tokens += int64(span.LLM.Tokens.TotalTokens)
+			byModelMap[model].Cost += span.LLM.Tokens.CostEstimate
 		}
 	}
+
+	// Convert maps to sorted arrays
+	for name, g := range byWorkflowMap {
+		summary.ByWorkflow = append(summary.ByWorkflow, CostBreakdown{
+			Name:        name,
+			RunCount:    g.Runs,
+			TotalTokens: g.Tokens,
+			TotalCost:   g.Cost,
+		})
+	}
+	sort.Slice(summary.ByWorkflow, func(i, j int) bool {
+		return summary.ByWorkflow[i].TotalCost > summary.ByWorkflow[j].TotalCost
+	})
+
+	for name, g := range byProviderMap {
+		summary.ByProvider = append(summary.ByProvider, CostBreakdown{
+			Name:        name,
+			RunCount:    g.Runs,
+			TotalTokens: g.Tokens,
+			TotalCost:   g.Cost,
+		})
+	}
+	sort.Slice(summary.ByProvider, func(i, j int) bool {
+		return summary.ByProvider[i].TotalCost > summary.ByProvider[j].TotalCost
+	})
+
+	for name, g := range byModelMap {
+		summary.ByModel = append(summary.ByModel, CostBreakdown{
+			Name:        name,
+			RunCount:    g.Runs,
+			TotalTokens: g.Tokens,
+			TotalCost:   g.Cost,
+		})
+	}
+	sort.Slice(summary.ByModel, func(i, j int) bool {
+		return summary.ByModel[i].TotalCost > summary.ByModel[j].TotalCost
+	})
 
 	// Filter by group_by if specified
 	if groupBy != "" {
@@ -286,7 +344,7 @@ func (s *Server) handleCostTimeseries(w http.ResponseWriter, r *http.Request) {
 		Since:      since,
 		Until:      until,
 		BucketSize: bucketSize,
-		DataPoints: dataPoints,
+		Data:       dataPoints,
 	}
 
 	s.writeJSON(w, http.StatusOK, response)
@@ -294,25 +352,33 @@ func (s *Server) handleCostTimeseries(w http.ResponseWriter, r *http.Request) {
 
 // CostSummaryResponse is the response for GET /api/cost/summary
 type CostSummaryResponse struct {
-	Since            time.Time            `json:"since"`
-	Until            time.Time            `json:"until,omitempty"`
-	TotalRuns        int                  `json:"total_runs"`
-	TotalTokens      int64                `json:"total_tokens"`
-	TotalCost        float64              `json:"total_cost"`
-	InputTokens      int64                `json:"input_tokens"`
-	OutputTokens     int64                `json:"output_tokens"`
-	CacheReadTokens  int64                `json:"cache_read_tokens"`
-	CacheWriteTokens int64                `json:"cache_write_tokens"`
-	ByWorkflow       map[string]CostGroup `json:"by_workflow,omitempty"`
-	ByProvider       map[string]CostGroup `json:"by_provider,omitempty"`
-	ByModel          map[string]CostGroup `json:"by_model,omitempty"`
+	Since            time.Time       `json:"since"`
+	Until            time.Time       `json:"until,omitempty"`
+	TotalRuns        int             `json:"total_runs"`
+	TotalTokens      int64           `json:"total_tokens"`
+	TotalCost        float64         `json:"total_cost"`
+	InputTokens      int64           `json:"input_tokens"`
+	OutputTokens     int64           `json:"output_tokens"`
+	CacheReadTokens  int64           `json:"cache_read_tokens"`
+	CacheWriteTokens int64           `json:"cache_write_tokens"`
+	ByWorkflow       []CostBreakdown `json:"by_workflow,omitempty"`
+	ByProvider       []CostBreakdown `json:"by_provider,omitempty"`
+	ByModel          []CostBreakdown `json:"by_model,omitempty"`
 }
 
-// CostGroup represents aggregated cost data
-type CostGroup struct {
-	Runs   int     `json:"runs"`
-	Tokens int64   `json:"tokens"`
-	Cost   float64 `json:"cost"`
+// CostBreakdown represents aggregated cost data with a name
+type CostBreakdown struct {
+	Name        string  `json:"name"`
+	RunCount    int     `json:"run_count"`
+	TotalTokens int64   `json:"total_tokens"`
+	TotalCost   float64 `json:"total_cost"`
+}
+
+// costGroupMap is used internally for aggregation
+type costGroupMap struct {
+	Runs   int
+	Tokens int64
+	Cost   float64
 }
 
 // CostRunResponse is the response for GET /api/cost/runs/{id}
@@ -343,7 +409,7 @@ type CostTimeseriesResponse struct {
 	Since      time.Time    `json:"since"`
 	Until      time.Time    `json:"until"`
 	BucketSize string       `json:"bucket_size"`
-	DataPoints []TimeBucket `json:"data_points"`
+	Data       []TimeBucket `json:"data"`
 }
 
 // TimeBucket represents a time bucket in timeseries data
