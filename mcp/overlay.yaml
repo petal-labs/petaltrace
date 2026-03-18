@@ -1,0 +1,244 @@
+# PetalTrace MCP Overlay for PetalFlow Integration
+# Copy this file to PetalFlow's tools/overlays/petaltrace.overlay.yaml
+overlay_version: "1.0"
+
+# Action mappings from friendly names to MCP tool names
+group_actions:
+  list_runs: petaltrace.trace.list
+  get_run: petaltrace.trace.get
+  search_runs: petaltrace.trace.search
+  get_prompt: petaltrace.prompt.get
+  cost_summary: petaltrace.cost.summary
+  cost_run: petaltrace.cost.run
+  compare_runs: petaltrace.diff.compare
+  replay_run: petaltrace.run.replay
+
+# Output schemas for structured responses
+output_schemas:
+  list_runs:
+    runs:
+      type: array
+      items:
+        type: object
+        properties:
+          id: { type: string }
+          workflow_name: { type: string }
+          status: { type: string, enum: [running, completed, failed, cancelled] }
+          duration_ms: { type: integer }
+          total_tokens: { type: integer }
+          estimated_cost: { type: number }
+          started_at: { type: string, format: date-time }
+          node_count: { type: integer }
+          error_count: { type: integer }
+    cursor: { type: string }
+    count: { type: integer }
+
+  get_run:
+    run:
+      type: object
+      properties:
+        id: { type: string }
+        workflow_id: { type: string }
+        workflow_name: { type: string }
+        workflow_version: { type: string }
+        status: { type: string }
+        started_at: { type: string, format: date-time }
+        completed_at: { type: string, format: date-time }
+        duration_ms: { type: integer }
+        total_tokens:
+          type: object
+          properties:
+            input_tokens: { type: integer }
+            output_tokens: { type: integer }
+            total_tokens: { type: integer }
+        estimated_cost:
+          type: object
+          properties:
+            currency: { type: string }
+            total: { type: number }
+        node_count: { type: integer }
+        error_count: { type: integer }
+        trigger_source: { type: string }
+        parent_run_id: { type: string }
+    spans:
+      type: array
+      items:
+        type: object
+        properties:
+          id: { type: string }
+          parent_id: { type: string }
+          kind: { type: string, enum: [node, llm, tool, edge, custom] }
+          name: { type: string }
+          status: { type: string }
+          started_at: { type: string, format: date-time }
+          duration_ms: { type: integer }
+          provider: { type: string }
+          model: { type: string }
+          input_tokens: { type: integer }
+          output_tokens: { type: integer }
+          tool_name: { type: string }
+          node_id: { type: string }
+          node_type: { type: string }
+          error: { type: string }
+
+  search_runs:
+    runs:
+      type: array
+      items:
+        type: object
+        properties:
+          run_id: { type: string }
+          workflow_name: { type: string }
+          status: { type: string }
+          span_id: { type: string }
+          span_name: { type: string }
+          snippet: { type: string }
+          started_at: { type: string, format: date-time }
+    count: { type: integer }
+
+  get_prompt:
+    run_id: { type: string }
+    node_id: { type: string }
+    span_id: { type: string }
+    provider: { type: string }
+    model: { type: string }
+    system_prompt: { type: string }
+    messages: { type: array }
+    completion:
+      type: object
+      properties:
+        content: { type: array }
+        text_content: { type: string }
+    tokens:
+      type: object
+      properties:
+        input: { type: integer }
+        output: { type: integer }
+        total: { type: integer }
+        cost_usd: { type: number }
+    latency:
+      type: object
+      properties:
+        total_ms: { type: integer }
+        time_to_first_ms: { type: integer }
+    stop_reason: { type: string }
+
+  cost_summary:
+    total_runs: { type: integer }
+    total_tokens: { type: integer }
+    total_cost_usd: { type: number }
+    input_tokens: { type: integer }
+    output_tokens: { type: integer }
+    average_cost_per_run: { type: number }
+    breakdown:
+      type: array
+      items:
+        type: object
+        properties:
+          name: { type: string }
+          run_count: { type: integer }
+          total_tokens: { type: integer }
+          total_cost_usd: { type: number }
+    time_range:
+      type: object
+      properties:
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+
+  cost_run:
+    run_id: { type: string }
+    workflow_name: { type: string }
+    status: { type: string }
+    total_tokens: { type: integer }
+    total_cost_usd: { type: number }
+    input_tokens: { type: integer }
+    output_tokens: { type: integer }
+    by_node:
+      type: array
+      items:
+        type: object
+        properties:
+          node_id: { type: string }
+          node_name: { type: string }
+          provider: { type: string }
+          model: { type: string }
+          input_tokens: { type: integer }
+          output_tokens: { type: integer }
+          total_tokens: { type: integer }
+          cost_usd: { type: number }
+    by_provider:
+      type: object
+      additionalProperties: { type: number }
+    by_model:
+      type: object
+      additionalProperties: { type: number }
+
+  compare_runs:
+    diff_id: { type: string }
+    base_run_id: { type: string }
+    compare_run_id: { type: string }
+    summary:
+      type: object
+      properties:
+        status_match: { type: boolean }
+        base_status: { type: string }
+        compare_status: { type: string }
+        duration_delta_ms: { type: integer }
+        token_delta: { type: integer }
+        cost_delta_usd: { type: number }
+        nodes_added: { type: integer }
+        nodes_removed: { type: integer }
+        nodes_changed: { type: integer }
+        path_diverged: { type: boolean }
+    node_diffs:
+      type: array
+      items:
+        type: object
+        properties:
+          node_id: { type: string }
+          status: { type: string, enum: [added, removed, changed, unchanged] }
+          base_tokens: { type: integer }
+          compare_tokens: { type: integer }
+          token_delta: { type: integer }
+          base_cost_usd: { type: number }
+          compare_cost_usd: { type: number }
+          cost_delta_usd: { type: number }
+          similarity: { type: number }
+          content_diff: { type: string }
+    cost_diff:
+      type: object
+      properties:
+        base_total_usd: { type: number }
+        compare_total_usd: { type: number }
+        delta_usd: { type: number }
+        delta_percent: { type: number }
+
+  replay_run:
+    replay_id: { type: string }
+    source_run_id: { type: string }
+    new_run_id: { type: string }
+    diff_id: { type: string }
+    mode: { type: string, enum: [live, mocked, hybrid] }
+    status: { type: string, enum: [pending, running, completed, failed] }
+    error: { type: string }
+
+# Server configuration
+config:
+  endpoint:
+    type: string
+    required: true
+    default: "http://localhost:8090"
+    description: "PetalTrace daemon endpoint"
+
+# Package metadata
+metadata:
+  author: "petal-labs"
+  version: "1.0.0"
+  homepage: "https://github.com/petal-labs/petaltrace"
+  description: "Agent observability platform — trace, replay, and diff workflow executions"
+  tags:
+    - observability
+    - tracing
+    - debugging
+    - replay
+    - cost-tracking
