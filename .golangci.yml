@@ -51,12 +51,9 @@ linters:
       excludes:
         - G104  # Audit errors not checked (covered by errcheck)
         - G115  # Integer overflow (uint64->int64 for nanoseconds is safe)
-        - G301  # Directory permissions (0755 is standard)
         - G304  # File path from variable (necessary for config loading)
-        - G306  # WriteFile permissions (0644 is standard)
         - G101  # False positive: env var names, not credentials
         - G404  # Retry jitter doesn't need cryptographic randomness
-        - G704  # SSRF via taint analysis (test code uses dynamic URLs)
 
   exclusions:
     rules:
@@ -64,7 +61,20 @@ linters:
       - path: _test\.go
         linters:
           - errcheck
+      # Allow relaxed permissions and SSRF in tests
+      - path: _test\.go
+        linters:
           - gosec
+      # Allow standard permissions for CLI and store operations
+      - path: (cmd/petaltrace/|store/)
+        linters:
+          - gosec
+        text: "G301|G306"
+      # Allow HTTP client calls in replay package (internal URLs)
+      - path: replay/
+        linters:
+          - gosec
+        text: "G107|G704"
       # Allow unchecked Close/Stop in defer statements (cleanup code)
       - linters:
           - errcheck

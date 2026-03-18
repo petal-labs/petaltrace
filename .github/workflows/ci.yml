@@ -98,5 +98,4 @@ jobs:
           # G301/G306: standard CLI permissions (0755 dirs, 0644 files)
           # G304: CLI intentionally handles user-specified paths
           # G404: math/rand for retry jitter (not security-critical)
-          # G704: SSRF via taint analysis (test code uses dynamic URLs)
-          args: -exclude=G101,G104,G115,G201,G301,G304,G306,G404,G704 ./...
+          args: -exclude=G101,G104,G115,G201,G301,G304,G306,G404 ./...
