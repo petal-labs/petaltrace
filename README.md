@@ -43,6 +43,47 @@ This starts:
 
 Configure your OpenTelemetry SDK to send traces to `http://localhost:4318`.
 
+## Web UI
+
+PetalTrace includes a React-based web UI for visual exploration of traces, costs, and workflow graphs.
+
+### Development Mode
+
+Run the backend and UI development server:
+
+```bash
+# Terminal 1: Start the PetalTrace daemon
+./bin/petaltrace serve
+
+# Terminal 2: Start the UI dev server
+cd ui
+npm install
+npm run dev
+```
+
+The UI will be available at `http://localhost:5173` with hot reload enabled. API requests are automatically proxied to the PetalTrace daemon on port 8090.
+
+### Production Build
+
+Build the UI for production:
+
+```bash
+cd ui
+npm install
+npm run build
+```
+
+The built files are output to `ui/dist/`. Serve these static files with your preferred web server (nginx, caddy, etc.) and configure it to proxy `/api/*` requests to the PetalTrace daemon.
+
+### UI Features
+
+- **Runs List** — Browse and filter workflow runs by status, time, cost
+- **Run Detail** — View span tree, execution timeline, and token usage
+- **Graph View** — Visualize workflow DAG with ReactFlow
+- **Cost Dashboard** — Track token consumption and costs over time
+- **Live Streaming** — Watch runs execute in real-time via SSE
+- **Diff View** — Compare two runs side-by-side
+
 ## CLI Commands
 
 ```bash
