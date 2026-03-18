@@ -94,8 +94,7 @@ jobs:
           # G101: env var names (not actual secrets)
           # G104: unhandled errors on non-critical JSON encoding
           # G115: integer overflow (uint64->int64 for nanoseconds is safe)
-          # G201: SQL formatting uses whitelist-validated sort columns
           # G301/G306: standard CLI permissions (0755 dirs, 0644 files)
           # G304: CLI intentionally handles user-specified paths
           # G404: math/rand for retry jitter (not security-critical)
-          args: -exclude=G101,G104,G115,G201,G301,G304,G306,G404 ./...
+          args: -exclude=G101,G104,G115,G301,G304,G306,G404 ./...

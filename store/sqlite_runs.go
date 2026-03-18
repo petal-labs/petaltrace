@@ -207,28 +207,18 @@ func (s *SQLiteStore) ListRuns(ctx context.Context, opts ListRunsOptions) ([]Run
 		whereClause = "WHERE " + strings.Join(conditions, " AND ")
 	}
 
-	sortBy := "started_at"
-	if opts.SortBy != "" {
-		allowedSorts := map[string]bool{
-			"started_at": true, "duration_ms": true, "total_tokens": true,
-			"estimated_cost_usd": true, "workflow_name": true,
-		}
-		if allowedSorts[opts.SortBy] {
-			sortBy = opts.SortBy
-		}
-	}
-
-	sortOrder := "DESC"
-	if opts.SortOrder == "asc" || opts.SortOrder == "ASC" {
-		sortOrder = "ASC"
-	}
+	orderByClause := buildRunsOrderByClause(opts.SortBy, opts.SortOrder)
 
 	limit := 50
 	if opts.Limit > 0 && opts.Limit <= 1000 {
 		limit = opts.Limit
 	}
 
-	query := fmt.Sprintf(`
+	// Build query with safe, pre-validated clauses:
+	// - whereClause: built from hardcoded column names with parameterized values (?)
+	// - orderByClause: from buildRunsOrderByClause which uses a whitelist of valid columns
+	//nolint:gosec // G202: whereClause uses parameterized values, orderByClause uses whitelist
+	query := `
 		SELECT
 			id, workflow_id, workflow_name, workflow_version, source_kind, status,
 			started_at, completed_at, duration_ms,
@@ -237,10 +227,10 @@ func (s *SQLiteStore) ListRuns(ctx context.Context, opts ListRunsOptions) ([]Run
 			cache_read_tokens, cache_write_tokens, estimated_cost_usd,
 			node_count, error_count, tags, trigger_source, parent_run_id, starred, created_at
 		FROM runs
-		%s
-		ORDER BY %s %s
+		` + whereClause + `
+		` + orderByClause + `
 		LIMIT ?
-	`, whereClause, sortBy, sortOrder)
+	`
 
 	args = append(args, limit+1)
 
@@ -435,6 +425,35 @@ func scanRunFromRows(rows *sql.Rows) (*Run, error) {
 	run.EstimatedCost.Currency = "USD"
 
 	return &run, nil
+}
+
+// buildRunsOrderByClause returns a safe, pre-validated ORDER BY clause.
+// This uses a whitelist approach to prevent SQL injection (gosec G201).
+func buildRunsOrderByClause(sortBy, sortOrder string) string {
+	// Whitelist of allowed sort columns
+	validColumns := map[string]string{
+		"started_at":         "started_at",
+		"completed_at":       "completed_at",
+		"created_at":         "created_at",
+		"duration_ms":        "duration_ms",
+		"estimated_cost_usd": "estimated_cost_usd",
+		"total_tokens":       "total_tokens",
+		"workflow_name":      "workflow_name",
+		"status":             "status",
+		"":                   "started_at", // default
+	}
+
+	column, ok := validColumns[sortBy]
+	if !ok {
+		column = "started_at"
+	}
+
+	order := "DESC"
+	if sortOrder == "asc" || sortOrder == "ASC" {
+		order = "ASC"
+	}
+
+	return "ORDER BY " + column + " " + order
 }
 
 func formatTimePtr(t *time.Time) sql.NullString {
