@@ -5,6 +5,7 @@ import { ArrowLeft, Play, CheckCircle, XCircle, Clock, Coins, Hash, RefreshCw, G
 import { getRun, getSpans } from '@/lib/api'
 import { formatDuration, formatCost, formatTokens, formatDate, getStatusColor, cn } from '@/lib/utils'
 import Timeline from '@/components/Timeline'
+import GraphView from '@/components/GraphView'
 import PromptInspector from '@/components/PromptInspector'
 import ReplayConsole from '@/components/ReplayConsole'
 import type { Span } from '@/types'
@@ -168,9 +169,11 @@ export default function RunDetail() {
           )}
 
           {activeTab === 'graph' && (
-            <div className="card p-8 text-center text-gray-500">
-              Graph view coming soon
-            </div>
+            <GraphView
+              spans={spans ?? []}
+              onSelectSpan={setSelectedSpan}
+              selectedSpanId={selectedSpan?.id}
+            />
           )}
 
           {activeTab === 'replay' && (
