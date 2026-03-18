@@ -217,7 +217,7 @@ func (s *SQLiteStore) ListRuns(ctx context.Context, opts ListRunsOptions) ([]Run
 	// Build query with safe, pre-validated clauses:
 	// - whereClause: built from hardcoded column names with parameterized values (?)
 	// - orderByClause: from buildRunsOrderByClause which uses a whitelist of valid columns
-	//nolint:gosec // G202: whereClause uses parameterized values, orderByClause uses whitelist
+	// #nosec G202 -- SQL concatenation is safe: whereClause uses parameterized values, orderByClause uses whitelist
 	query := `
 		SELECT
 			id, workflow_id, workflow_name, workflow_version, source_kind, status,
