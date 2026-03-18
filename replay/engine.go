@@ -13,13 +13,13 @@ import (
 
 // Engine orchestrates replay operations
 type Engine struct {
-	store        store.TraceStore
-	validator    *RequestValidator
-	liveReplayer *LiveReplayer
+	store          store.TraceStore
+	validator      *RequestValidator
+	liveReplayer   *LiveReplayer
 	mockedReplayer *MockedReplayer
 	hybridReplayer *HybridReplayer
-	diffEngine   *diff.Engine
-	logger       *slog.Logger
+	diffEngine     *diff.Engine
+	logger         *slog.Logger
 
 	// Track active replays
 	mu      sync.RWMutex

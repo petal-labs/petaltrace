@@ -60,15 +60,15 @@ Examples:
 
 // Flags
 var (
-	listWorkflow    string
-	listStatus      string
-	listSince       string
-	listLimit       int
-	listJSON        bool
-	showSpans       bool
-	showNode        string
-	showJSON        bool
-	deleteConfirm   bool
+	listWorkflow  string
+	listStatus    string
+	listSince     string
+	listLimit     int
+	listJSON      bool
+	showSpans     bool
+	showNode      string
+	showJSON      bool
+	deleteConfirm bool
 )
 
 func init() {

@@ -18,8 +18,8 @@ type BatchWriter struct {
 	batchSize     int
 	flushInterval time.Duration
 
-	mu      sync.Mutex
-	buffer  []*CorrelatedSpan
+	mu         sync.Mutex
+	buffer     []*CorrelatedSpan
 	runUpdates map[string]*store.Run
 
 	ctx        context.Context

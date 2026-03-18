@@ -285,7 +285,7 @@ func TestCostEstimateMarshalJSON(t *testing.T) {
 		},
 		ByModel: map[string]float64{
 			"claude-sonnet-4-20250514": 1.00,
-			"gpt-4o":             0.25,
+			"gpt-4o":                   0.25,
 		},
 		ByNode: map[string]float64{
 			"researcher": 0.80,

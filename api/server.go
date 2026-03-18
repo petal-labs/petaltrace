@@ -223,10 +223,6 @@ type APIError struct {
 	Details any    `json:"details,omitempty"`
 }
 
-func (s *Server) writeAPIError(w http.ResponseWriter, status int, err APIError) {
-	s.writeJSON(w, status, err)
-}
-
 // Pagination response wrapper
 type PaginatedResponse struct {
 	Data       any    `json:"data"`

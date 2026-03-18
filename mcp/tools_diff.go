@@ -64,30 +64,30 @@ type DiffCompareResult struct {
 
 // DiffSummaryInfo contains summary of differences
 type DiffSummaryInfo struct {
-	StatusMatch       bool    `json:"status_match"`
-	BaseStatus        string  `json:"base_status"`
-	CompareStatus     string  `json:"compare_status"`
-	DurationDeltaMs   int64   `json:"duration_delta_ms"`
-	TokenDelta        int     `json:"token_delta"`
-	CostDeltaUSD      float64 `json:"cost_delta_usd"`
-	NodesAdded        int     `json:"nodes_added"`
-	NodesRemoved      int     `json:"nodes_removed"`
-	NodesChanged      int     `json:"nodes_changed"`
-	PathDiverged      bool    `json:"path_diverged"`
+	StatusMatch     bool    `json:"status_match"`
+	BaseStatus      string  `json:"base_status"`
+	CompareStatus   string  `json:"compare_status"`
+	DurationDeltaMs int64   `json:"duration_delta_ms"`
+	TokenDelta      int     `json:"token_delta"`
+	CostDeltaUSD    float64 `json:"cost_delta_usd"`
+	NodesAdded      int     `json:"nodes_added"`
+	NodesRemoved    int     `json:"nodes_removed"`
+	NodesChanged    int     `json:"nodes_changed"`
+	PathDiverged    bool    `json:"path_diverged"`
 }
 
 // NodeDiffInfo contains diff info for a single node
 type NodeDiffInfo struct {
-	NodeID           string   `json:"node_id"`
-	Status           string   `json:"status"` // "added", "removed", "changed", "unchanged"
-	BaseTokens       int      `json:"base_tokens,omitempty"`
-	CompareTokens    int      `json:"compare_tokens,omitempty"`
-	TokenDelta       int      `json:"token_delta,omitempty"`
-	BaseCostUSD      float64  `json:"base_cost_usd,omitempty"`
-	CompareCostUSD   float64  `json:"compare_cost_usd,omitempty"`
-	CostDeltaUSD     float64  `json:"cost_delta_usd,omitempty"`
-	Similarity       float64  `json:"similarity,omitempty"`
-	ContentDiff      string   `json:"content_diff,omitempty"`
+	NodeID         string  `json:"node_id"`
+	Status         string  `json:"status"` // "added", "removed", "changed", "unchanged"
+	BaseTokens     int     `json:"base_tokens,omitempty"`
+	CompareTokens  int     `json:"compare_tokens,omitempty"`
+	TokenDelta     int     `json:"token_delta,omitempty"`
+	BaseCostUSD    float64 `json:"base_cost_usd,omitempty"`
+	CompareCostUSD float64 `json:"compare_cost_usd,omitempty"`
+	CostDeltaUSD   float64 `json:"cost_delta_usd,omitempty"`
+	Similarity     float64 `json:"similarity,omitempty"`
+	ContentDiff    string  `json:"content_diff,omitempty"`
 }
 
 // CostDiffInfo contains cost comparison info
@@ -281,13 +281,13 @@ type RunReplayArgs struct {
 
 // RunReplayResult contains the replay result
 type RunReplayResult struct {
-	ReplayID     string `json:"replay_id"`
-	SourceRunID  string `json:"source_run_id"`
-	NewRunID     string `json:"new_run_id,omitempty"`
-	DiffID       string `json:"diff_id,omitempty"`
-	Mode         string `json:"mode"`
-	Status       string `json:"status"`
-	Error        string `json:"error,omitempty"`
+	ReplayID    string `json:"replay_id"`
+	SourceRunID string `json:"source_run_id"`
+	NewRunID    string `json:"new_run_id,omitempty"`
+	DiffID      string `json:"diff_id,omitempty"`
+	Mode        string `json:"mode"`
+	Status      string `json:"status"`
+	Error       string `json:"error,omitempty"`
 }
 
 // handleRunReplay handles the petaltrace.run.replay tool

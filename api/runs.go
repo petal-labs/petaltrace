@@ -159,8 +159,8 @@ func (s *Server) handleDeleteRun(w http.ResponseWriter, r *http.Request) {
 	}
 
 	s.writeJSON(w, http.StatusOK, map[string]string{
-		"status":  "deleted",
-		"run_id":  runID,
+		"status": "deleted",
+		"run_id": runID,
 	})
 }
 

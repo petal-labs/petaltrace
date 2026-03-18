@@ -15,15 +15,15 @@ const (
 )
 
 type Run struct {
-	ID              string          `json:"id"`
-	WorkflowID      string          `json:"workflow_id"`
-	WorkflowName    string          `json:"workflow_name"`
-	WorkflowVersion string          `json:"workflow_version,omitempty"`
-	SourceKind      string          `json:"source_kind"`
-	Status          RunStatus       `json:"status"`
-	StartedAt       time.Time       `json:"started_at"`
-	CompletedAt     *time.Time      `json:"completed_at,omitempty"`
-	DurationMs      int64           `json:"duration_ms"`
+	ID              string     `json:"id"`
+	WorkflowID      string     `json:"workflow_id"`
+	WorkflowName    string     `json:"workflow_name"`
+	WorkflowVersion string     `json:"workflow_version,omitempty"`
+	SourceKind      string     `json:"source_kind"`
+	Status          RunStatus  `json:"status"`
+	StartedAt       time.Time  `json:"started_at"`
+	CompletedAt     *time.Time `json:"completed_at,omitempty"`
+	DurationMs      int64      `json:"duration_ms"`
 
 	GraphSnapshot  json.RawMessage `json:"graph_snapshot,omitempty"`
 	InputSnapshot  json.RawMessage `json:"input_snapshot,omitempty"`
@@ -93,21 +93,21 @@ type NodeSpanData struct {
 }
 
 type LLMSpanData struct {
-	Provider        string           `json:"provider"`
-	Model           string           `json:"model"`
-	SystemPrompt    string           `json:"system_prompt,omitempty"`
-	Messages        []LLMMessage     `json:"messages,omitempty"`
-	Temperature     *float64         `json:"temperature,omitempty"`
-	MaxTokens       *int             `json:"max_tokens,omitempty"`
-	ToolDefinitions []ToolDefinition `json:"tool_definitions,omitempty"`
-	Completion      LLMCompletion    `json:"completion"`
-	Tokens          TokenDetail      `json:"tokens"`
-	TimeToFirstToken *int64          `json:"ttft_ms,omitempty"`
-	TotalLatency    int64            `json:"total_latency_ms"`
-	RequestID       string           `json:"request_id,omitempty"`
-	StopReason      string           `json:"stop_reason,omitempty"`
-	CacheRead       *int             `json:"cache_read_tokens,omitempty"`
-	CacheCreation   *int             `json:"cache_creation_tokens,omitempty"`
+	Provider         string           `json:"provider"`
+	Model            string           `json:"model"`
+	SystemPrompt     string           `json:"system_prompt,omitempty"`
+	Messages         []LLMMessage     `json:"messages,omitempty"`
+	Temperature      *float64         `json:"temperature,omitempty"`
+	MaxTokens        *int             `json:"max_tokens,omitempty"`
+	ToolDefinitions  []ToolDefinition `json:"tool_definitions,omitempty"`
+	Completion       LLMCompletion    `json:"completion"`
+	Tokens           TokenDetail      `json:"tokens"`
+	TimeToFirstToken *int64           `json:"ttft_ms,omitempty"`
+	TotalLatency     int64            `json:"total_latency_ms"`
+	RequestID        string           `json:"request_id,omitempty"`
+	StopReason       string           `json:"stop_reason,omitempty"`
+	CacheRead        *int             `json:"cache_read_tokens,omitempty"`
+	CacheCreation    *int             `json:"cache_creation_tokens,omitempty"`
 }
 
 type LLMMessage struct {
@@ -240,11 +240,11 @@ type GraphDiff struct {
 }
 
 type CostDiff struct {
-	BaseCost      float64            `json:"base_cost"`
-	CompareCost   float64            `json:"compare_cost"`
-	Delta         float64            `json:"delta"`
-	ByProvider    map[string]float64 `json:"by_provider,omitempty"`
-	ByModel       map[string]float64 `json:"by_model,omitempty"`
+	BaseCost    float64            `json:"base_cost"`
+	CompareCost float64            `json:"compare_cost"`
+	Delta       float64            `json:"delta"`
+	ByProvider  map[string]float64 `json:"by_provider,omitempty"`
+	ByModel     map[string]float64 `json:"by_model,omitempty"`
 }
 
 type ListRunsOptions struct {
@@ -265,11 +265,11 @@ type ListRunsOptions struct {
 }
 
 type PricingEntry struct {
-	Provider          string  `json:"provider"`
-	Model             string  `json:"model"`
-	InputPer1M        float64 `json:"input_per_1m"`
-	OutputPer1M       float64 `json:"output_per_1m"`
-	CacheReadPer1M    float64 `json:"cache_read_per_1m,omitempty"`
-	CacheWritePer1M   float64 `json:"cache_write_per_1m,omitempty"`
-	EffectiveFrom     time.Time `json:"effective_from"`
+	Provider        string    `json:"provider"`
+	Model           string    `json:"model"`
+	InputPer1M      float64   `json:"input_per_1m"`
+	OutputPer1M     float64   `json:"output_per_1m"`
+	CacheReadPer1M  float64   `json:"cache_read_per_1m,omitempty"`
+	CacheWritePer1M float64   `json:"cache_write_per_1m,omitempty"`
+	EffectiveFrom   time.Time `json:"effective_from"`
 }

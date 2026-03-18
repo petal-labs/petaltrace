@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/petal-labs/petaltrace/store"
 )
 
@@ -202,20 +203,20 @@ func (r *MockedReplayer) executeMocked(ctx context.Context, req *ReplayRequest, 
 		spanIDMap[span.ID] = newSpanID
 
 		newSpan := &store.Span{
-			ID:          newSpanID,
-			RunID:       newRunID,
-			TraceID:     newRunID,
-			Name:        span.Name,
-			Kind:        span.Kind,
-			Status:      span.Status,
-			StartedAt:   time.Now(),
-			DurationMs:  span.DurationMs,
-			Attributes:  span.Attributes,
-			Node:        span.Node,
-			LLM:         span.LLM,
-			Tool:        span.Tool,
-			Edge:        span.Edge,
-			Error:       span.Error,
+			ID:         newSpanID,
+			RunID:      newRunID,
+			TraceID:    newRunID,
+			Name:       span.Name,
+			Kind:       span.Kind,
+			Status:     span.Status,
+			StartedAt:  time.Now(),
+			DurationMs: span.DurationMs,
+			Attributes: span.Attributes,
+			Node:       span.Node,
+			LLM:        span.LLM,
+			Tool:       span.Tool,
+			Edge:       span.Edge,
+			Error:      span.Error,
 		}
 
 		// Update completed time

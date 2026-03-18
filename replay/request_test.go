@@ -41,17 +41,17 @@ func (m *mockStore) GetSpansByKind(ctx context.Context, runID string, kind store
 }
 
 // Implement other required interface methods with no-ops
-func (m *mockStore) CreateRun(ctx context.Context, run *store.Run) error         { return nil }
-func (m *mockStore) UpdateRun(ctx context.Context, run *store.Run) error         { return nil }
-func (m *mockStore) DeleteRun(ctx context.Context, id string) error              { return nil }
+func (m *mockStore) CreateRun(ctx context.Context, run *store.Run) error { return nil }
+func (m *mockStore) UpdateRun(ctx context.Context, run *store.Run) error { return nil }
+func (m *mockStore) DeleteRun(ctx context.Context, id string) error      { return nil }
 func (m *mockStore) ListRuns(ctx context.Context, opts store.ListRunsOptions) ([]store.Run, string, error) {
 	return nil, "", nil
 }
-func (m *mockStore) CreateSpan(ctx context.Context, span *store.Span) error      { return nil }
+func (m *mockStore) CreateSpan(ctx context.Context, span *store.Span) error         { return nil }
 func (m *mockStore) CreateSpanBatch(ctx context.Context, spans []*store.Span) error { return nil }
-func (m *mockStore) GetSpan(ctx context.Context, id string) (*store.Span, error) { return nil, nil }
-func (m *mockStore) UpdateSpan(ctx context.Context, span *store.Span) error      { return nil }
-func (m *mockStore) UpdateRunAggregates(ctx context.Context, runID string) error { return nil }
+func (m *mockStore) GetSpan(ctx context.Context, id string) (*store.Span, error)    { return nil, nil }
+func (m *mockStore) UpdateSpan(ctx context.Context, span *store.Span) error         { return nil }
+func (m *mockStore) UpdateRunAggregates(ctx context.Context, runID string) error    { return nil }
 func (m *mockStore) IndexSpanText(ctx context.Context, spanID, promptText, completionText string) error {
 	return nil
 }
@@ -69,8 +69,8 @@ func (m *mockStore) GetPricing(ctx context.Context, provider, model string) (*st
 	return nil, nil
 }
 func (m *mockStore) UpsertPricing(ctx context.Context, entry *store.PricingEntry) error { return nil }
-func (m *mockStore) ListPricing(ctx context.Context) ([]store.PricingEntry, error)     { return nil, nil }
-func (m *mockStore) GetStats(ctx context.Context) (*store.StoreStats, error)           { return nil, nil }
+func (m *mockStore) ListPricing(ctx context.Context) ([]store.PricingEntry, error)      { return nil, nil }
+func (m *mockStore) GetStats(ctx context.Context) (*store.StoreStats, error)            { return nil, nil }
 func (m *mockStore) GarbageCollect(ctx context.Context, retentionDays int, dryRun bool) (int, error) {
 	return 0, nil
 }

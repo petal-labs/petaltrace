@@ -88,7 +88,7 @@ func (m *mockStore) GetPricing(ctx context.Context, provider, model string) (*st
 	return nil, nil
 }
 func (m *mockStore) UpsertPricing(ctx context.Context, entry *store.PricingEntry) error { return nil }
-func (m *mockStore) ListPricing(ctx context.Context) ([]store.PricingEntry, error)     { return nil, nil }
+func (m *mockStore) ListPricing(ctx context.Context) ([]store.PricingEntry, error)      { return nil, nil }
 
 func (m *mockStore) GetStats(ctx context.Context) (*store.StoreStats, error) { return m.stats, nil }
 func (m *mockStore) GarbageCollect(ctx context.Context, retentionDays int, dryRun bool) (int, error) {

@@ -161,18 +161,18 @@ func (s *Server) Close() error {
 
 // Request represents a JSON-RPC request
 type Request struct {
-	JSONRPC string          `json:"jsonrpc"`
+	JSONRPC string           `json:"jsonrpc"`
 	ID      *json.RawMessage `json:"id,omitempty"`
-	Method  string          `json:"method"`
-	Params  json.RawMessage `json:"params,omitempty"`
+	Method  string           `json:"method"`
+	Params  json.RawMessage  `json:"params,omitempty"`
 }
 
 // Response represents a JSON-RPC response
 type Response struct {
-	JSONRPC string          `json:"jsonrpc"`
+	JSONRPC string           `json:"jsonrpc"`
 	ID      *json.RawMessage `json:"id,omitempty"`
-	Result  json.RawMessage `json:"result,omitempty"`
-	Error   *ErrorObject    `json:"error,omitempty"`
+	Result  json.RawMessage  `json:"result,omitempty"`
+	Error   *ErrorObject     `json:"error,omitempty"`
 }
 
 // ErrorObject represents a JSON-RPC error
@@ -215,9 +215,9 @@ type ClientInfo struct {
 
 // InitializeResult contains initialization result
 type InitializeResult struct {
-	ProtocolVersion string         `json:"protocolVersion"`
+	ProtocolVersion string             `json:"protocolVersion"`
 	Capabilities    ServerCapabilities `json:"capabilities"`
-	ServerInfo      ServerInfo     `json:"serverInfo"`
+	ServerInfo      ServerInfo         `json:"serverInfo"`
 }
 
 // ServerCapabilities describes server capabilities

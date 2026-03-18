@@ -6,9 +6,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spf13/cobra"
+
 	"github.com/petal-labs/petaltrace/diff"
 	"github.com/petal-labs/petaltrace/replay"
-	"github.com/spf13/cobra"
 )
 
 var replayCmd = &cobra.Command{
@@ -23,15 +24,15 @@ var replayCmd = &cobra.Command{
 }
 
 var (
-	replayMode        string
-	replayModel       string
-	replayProvider    string
-	replayTemperature float64
-	replayMaxTokens   int
-	replayDiff        bool
-	replaySync        bool
-	replayTags        []string
-	replayJSON        bool
+	replayMode         string
+	replayModel        string
+	replayProvider     string
+	replayTemperature  float64
+	replayMaxTokens    int
+	replayDiff         bool
+	replaySync         bool
+	replayTags         []string
+	replayJSON         bool
 	replayPetalFlowURL string
 )
 

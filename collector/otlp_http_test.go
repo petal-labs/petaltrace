@@ -379,7 +379,7 @@ func TestConvertOTLPSpans_Attributes(t *testing.T) {
 							},
 							Events: []*tracepb.Span_Event{
 								{
-									Name:          "event1",
+									Name:         "event1",
 									TimeUnixNano: 1500000000,
 									Attributes: []*commonpb.KeyValue{
 										{Key: "event_attr", Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: "event_value"}}},

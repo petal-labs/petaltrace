@@ -52,7 +52,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 	slog.SetDefault(logger)
 
 	logger.Info("starting petaltrace",
-		"version", version,
+		"version", Version,
 		"config", cfgFile,
 	)
 

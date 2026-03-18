@@ -79,8 +79,8 @@ type TokenInfo struct {
 
 // LatencyInfo contains latency details
 type LatencyInfo struct {
-	TotalMs         int64 `json:"total_ms"`
-	TimeToFirstMs   int64 `json:"time_to_first_ms,omitempty"`
+	TotalMs       int64 `json:"total_ms"`
+	TimeToFirstMs int64 `json:"time_to_first_ms,omitempty"`
 }
 
 // handlePromptGet handles the petaltrace.prompt.get tool
@@ -216,14 +216,14 @@ type CostSummaryArgs struct {
 
 // CostSummaryResult contains cost summary data
 type CostSummaryResult struct {
-	TotalRuns     int                `json:"total_runs"`
-	TotalTokens   int                `json:"total_tokens"`
-	TotalCostUSD  float64            `json:"total_cost_usd"`
-	InputTokens   int                `json:"input_tokens"`
-	OutputTokens  int                `json:"output_tokens"`
-	AverageCost   float64            `json:"average_cost_per_run"`
-	Breakdown     []CostBreakdown    `json:"breakdown"`
-	TimeRange     TimeRange          `json:"time_range"`
+	TotalRuns    int             `json:"total_runs"`
+	TotalTokens  int             `json:"total_tokens"`
+	TotalCostUSD float64         `json:"total_cost_usd"`
+	InputTokens  int             `json:"input_tokens"`
+	OutputTokens int             `json:"output_tokens"`
+	AverageCost  float64         `json:"average_cost_per_run"`
+	Breakdown    []CostBreakdown `json:"breakdown"`
+	TimeRange    TimeRange       `json:"time_range"`
 }
 
 // CostBreakdown contains cost grouped by dimension
@@ -387,14 +387,14 @@ type CostRunArgs struct {
 
 // CostRunResult contains per-run cost breakdown
 type CostRunResult struct {
-	RunID        string            `json:"run_id"`
-	WorkflowName string            `json:"workflow_name"`
-	Status       string            `json:"status"`
-	TotalTokens  int               `json:"total_tokens"`
-	TotalCostUSD float64           `json:"total_cost_usd"`
-	InputTokens  int               `json:"input_tokens"`
-	OutputTokens int               `json:"output_tokens"`
-	ByNode       []NodeCost        `json:"by_node"`
+	RunID        string             `json:"run_id"`
+	WorkflowName string             `json:"workflow_name"`
+	Status       string             `json:"status"`
+	TotalTokens  int                `json:"total_tokens"`
+	TotalCostUSD float64            `json:"total_cost_usd"`
+	InputTokens  int                `json:"input_tokens"`
+	OutputTokens int                `json:"output_tokens"`
+	ByNode       []NodeCost         `json:"by_node"`
 	ByProvider   map[string]float64 `json:"by_provider"`
 	ByModel      map[string]float64 `json:"by_model"`
 }

@@ -59,7 +59,7 @@ func runMCP(cmd *cobra.Command, args []string) error {
 	slog.SetDefault(logger)
 
 	logger.Info("starting petaltrace MCP server",
-		"version", version,
+		"version", Version,
 		"transport", "stdio",
 	)
 

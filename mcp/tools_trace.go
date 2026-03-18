@@ -65,15 +65,15 @@ type TraceListResult struct {
 
 // RunSummary contains summary information about a run
 type RunSummary struct {
-	ID            string   `json:"id"`
-	WorkflowName  string   `json:"workflow_name"`
-	Status        string   `json:"status"`
-	DurationMs    int64    `json:"duration_ms"`
-	TotalTokens   int      `json:"total_tokens"`
-	EstimatedCost float64  `json:"estimated_cost"`
-	StartedAt     string   `json:"started_at"`
-	NodeCount     int      `json:"node_count"`
-	ErrorCount    int      `json:"error_count"`
+	ID            string  `json:"id"`
+	WorkflowName  string  `json:"workflow_name"`
+	Status        string  `json:"status"`
+	DurationMs    int64   `json:"duration_ms"`
+	TotalTokens   int     `json:"total_tokens"`
+	EstimatedCost float64 `json:"estimated_cost"`
+	StartedAt     string  `json:"started_at"`
+	NodeCount     int     `json:"node_count"`
+	ErrorCount    int     `json:"error_count"`
 }
 
 // handleTraceList handles the petaltrace.trace.list tool
@@ -185,21 +185,21 @@ type TraceGetResult struct {
 
 // RunDetail contains detailed run information
 type RunDetail struct {
-	ID              string         `json:"id"`
-	WorkflowID      string         `json:"workflow_id"`
-	WorkflowName    string         `json:"workflow_name"`
-	WorkflowVersion string         `json:"workflow_version"`
-	Status          string         `json:"status"`
-	StartedAt       string         `json:"started_at"`
-	CompletedAt     string         `json:"completed_at,omitempty"`
-	DurationMs      int64          `json:"duration_ms"`
-	TotalTokens     TokenSummary   `json:"total_tokens"`
-	EstimatedCost   CostSummary    `json:"estimated_cost"`
-	NodeCount       int            `json:"node_count"`
-	ErrorCount      int            `json:"error_count"`
+	ID              string            `json:"id"`
+	WorkflowID      string            `json:"workflow_id"`
+	WorkflowName    string            `json:"workflow_name"`
+	WorkflowVersion string            `json:"workflow_version"`
+	Status          string            `json:"status"`
+	StartedAt       string            `json:"started_at"`
+	CompletedAt     string            `json:"completed_at,omitempty"`
+	DurationMs      int64             `json:"duration_ms"`
+	TotalTokens     TokenSummary      `json:"total_tokens"`
+	EstimatedCost   CostSummary       `json:"estimated_cost"`
+	NodeCount       int               `json:"node_count"`
+	ErrorCount      int               `json:"error_count"`
 	Tags            map[string]string `json:"tags,omitempty"`
-	TriggerSource   string         `json:"trigger_source"`
-	ParentRunID     string         `json:"parent_run_id,omitempty"`
+	TriggerSource   string            `json:"trigger_source"`
+	ParentRunID     string            `json:"parent_run_id,omitempty"`
 }
 
 // TokenSummary contains token counts

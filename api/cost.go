@@ -58,12 +58,12 @@ func (s *Server) handleCostSummary(w http.ResponseWriter, r *http.Request) {
 
 	// Calculate summary
 	summary := CostSummaryResponse{
-		Since:        since,
-		Until:        until,
-		TotalRuns:    len(runs),
-		ByWorkflow:   make(map[string]CostGroup),
-		ByProvider:   make(map[string]CostGroup),
-		ByModel:      make(map[string]CostGroup),
+		Since:      since,
+		Until:      until,
+		TotalRuns:  len(runs),
+		ByWorkflow: make(map[string]CostGroup),
+		ByProvider: make(map[string]CostGroup),
+		ByModel:    make(map[string]CostGroup),
 	}
 
 	for _, run := range runs {

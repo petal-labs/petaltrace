@@ -144,7 +144,7 @@ func TestCostDiffer_CompareTokens(t *testing.T) {
 			wantBaseTotal: 150,
 		},
 		{
-			name: "span without LLM data",
+			name:     "span without LLM data",
 			baseSpan: &store.Span{
 				// No LLM field
 			},
@@ -245,9 +245,9 @@ func TestCostDiffer_AggregateTokenDiffs(t *testing.T) {
 
 func TestTokenAggregates_PercentChange(t *testing.T) {
 	tests := []struct {
-		name   string
-		agg    TokenAggregates
-		want   float64
+		name string
+		agg  TokenAggregates
+		want float64
 	}{
 		{
 			name: "both zero",
@@ -299,9 +299,9 @@ func TestTokenAggregates_PercentChange(t *testing.T) {
 
 func TestTokenAggregates_CostPercentChange(t *testing.T) {
 	tests := []struct {
-		name   string
-		agg    TokenAggregates
-		want   float64
+		name string
+		agg  TokenAggregates
+		want float64
 	}{
 		{
 			name: "both zero",

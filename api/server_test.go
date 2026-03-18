@@ -14,12 +14,12 @@ import (
 
 // mockStore implements store.TraceStore for testing
 type mockStore struct {
-	runs      map[string]*store.Run
-	spans     map[string][]*store.Span
-	diffs     map[string]*store.RunDiff
-	pricing   map[string]*store.PricingEntry
-	stats     *store.StoreStats
-	statsErr  error
+	runs     map[string]*store.Run
+	spans    map[string][]*store.Span
+	diffs    map[string]*store.RunDiff
+	pricing  map[string]*store.PricingEntry
+	stats    *store.StoreStats
+	statsErr error
 }
 
 func newMockStore() *mockStore {
@@ -57,9 +57,9 @@ func (m *mockStore) ListRuns(ctx context.Context, opts store.ListRunsOptions) ([
 }
 func (m *mockStore) UpdateRunAggregates(ctx context.Context, runID string) error { return nil }
 
-func (m *mockStore) CreateSpan(ctx context.Context, span *store.Span) error      { return nil }
+func (m *mockStore) CreateSpan(ctx context.Context, span *store.Span) error         { return nil }
 func (m *mockStore) CreateSpanBatch(ctx context.Context, spans []*store.Span) error { return nil }
-func (m *mockStore) GetSpan(ctx context.Context, id string) (*store.Span, error) { return nil, nil }
+func (m *mockStore) GetSpan(ctx context.Context, id string) (*store.Span, error)    { return nil, nil }
 func (m *mockStore) GetSpanTree(ctx context.Context, runID string) ([]*store.Span, error) {
 	return m.spans[runID], nil
 }

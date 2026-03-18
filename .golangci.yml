@@ -1,0 +1,84 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  enable:
+    - govet
+    - staticcheck
+    - errcheck
+    - ineffassign
+    - unused
+    - gosec
+    - misspell
+
+  settings:
+    errcheck:
+      check-type-assertions: false
+      check-blank: false
+      exclude-functions:
+        - (io.Closer).Close
+        - (*os.File).Close
+        - (net/http.ResponseWriter).Write
+        - (*encoding/json.Encoder).Encode
+        - (*text/tabwriter.Writer).Flush
+        - (*database/sql.Tx).Rollback
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        - fmt.Scanln
+        - fmt.Sscanf
+        - encoding/json.Unmarshal
+    govet:
+      disable:
+        - fieldalignment
+        - shadow
+        - nilness
+        - unusedwrite
+    staticcheck:
+      checks:
+        - "all"
+        - "-SA4023"  # Ignore comparison of function with nil
+        - "-SA4031"  # Ignore checking for nil on type-asserted value
+        - "-SA9003"  # Ignore empty branch (legitimate pattern)
+        - "-ST1000"  # Ignore package comment requirement
+        - "-ST1021"  # Ignore comment format requirement
+        - "-QF1008"  # Ignore embedded field simplification
+        - "-QF1011"  # Ignore redundant type
+        - "-QF1012"  # Ignore WriteString(fmt.Sprintf) suggestion
+    gosec:
+      excludes:
+        - G104  # Audit errors not checked (covered by errcheck)
+        - G115  # Integer overflow (uint64->int64 for nanoseconds is safe)
+        - G301  # Directory permissions (0755 is standard)
+        - G304  # File path from variable (necessary for config loading)
+        - G306  # WriteFile permissions (0644 is standard)
+        - G101  # False positive: env var names, not credentials
+        - G404  # Retry jitter doesn't need cryptographic randomness
+        - G704  # SSRF via taint analysis (test code uses dynamic URLs)
+
+  exclusions:
+    rules:
+      # Allow unchecked errors in tests
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gosec
+      # Allow unchecked Close/Stop in defer statements (cleanup code)
+      - linters:
+          - errcheck
+        text: "Error return value of .*(Close|Stop|Rollback).*is not checked"
+      # Allow unchecked writeSSE in SSE handler (best effort)
+      - path: api/live\.go
+        linters:
+          - errcheck
+        text: "writeSSE"
+
+formatters:
+  enable:
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/petal-labs/petaltrace

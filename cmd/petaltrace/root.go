@@ -1,16 +1,17 @@
 package petaltrace
 
 import (
-	"fmt"
-	"os"
-
 	"github.com/spf13/cobra"
 )
 
+// Build-time variables (injected via ldflags)
 var (
-	cfgFile string
-	version = "0.1.0-dev"
+	Version   = "dev"
+	Commit    = "unknown"
+	BuildDate = "unknown"
 )
+
+var cfgFile string
 
 var rootCmd = &cobra.Command{
 	Use:   "petaltrace",
@@ -21,7 +22,7 @@ compiled graph topology through runtime node execution, LLM provider
 interactions, tool calls, token consumption, and data flow.
 
 See what your agents are thinking.`,
-	Version: version,
+	Version: Version,
 }
 
 func Execute() error {
@@ -32,13 +33,4 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is ./petaltrace.yaml)")
 
 	rootCmd.SetVersionTemplate(`{{printf "petaltrace %s\n" .Version}}`)
-}
-
-func exitWithError(msg string, err error) {
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %s: %v\n", msg, err)
-	} else {
-		fmt.Fprintf(os.Stderr, "Error: %s\n", msg)
-	}
-	os.Exit(1)
 }

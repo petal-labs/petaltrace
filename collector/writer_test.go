@@ -100,11 +100,11 @@ func TestBatchWriter_AutoFlush(t *testing.T) {
 
 	// Create a run first
 	run := &store.Run{
-		ID:        "run-2",
-		Status:    store.RunStatusRunning,
-		StartedAt: time.Now(),
-		CreatedAt: time.Now(),
-		TotalTokens: store.TokenSummary{},
+		ID:            "run-2",
+		Status:        store.RunStatusRunning,
+		StartedAt:     time.Now(),
+		CreatedAt:     time.Now(),
+		TotalTokens:   store.TokenSummary{},
 		EstimatedCost: store.CostEstimate{Currency: "USD"},
 	}
 	if err := s.CreateRun(ctx, run); err != nil {
@@ -155,11 +155,11 @@ func TestBatchWriter_PeriodicFlush(t *testing.T) {
 
 	// Create a run first
 	run := &store.Run{
-		ID:        "run-3",
-		Status:    store.RunStatusRunning,
-		StartedAt: time.Now(),
-		CreatedAt: time.Now(),
-		TotalTokens: store.TokenSummary{},
+		ID:            "run-3",
+		Status:        store.RunStatusRunning,
+		StartedAt:     time.Now(),
+		CreatedAt:     time.Now(),
+		TotalTokens:   store.TokenSummary{},
 		EstimatedCost: store.CostEstimate{Currency: "USD"},
 	}
 	if err := s.CreateRun(ctx, run); err != nil {
@@ -213,11 +213,11 @@ func TestBatchWriter_LLMTextIndexing(t *testing.T) {
 
 	// Create a run first
 	run := &store.Run{
-		ID:        "run-4",
-		Status:    store.RunStatusRunning,
-		StartedAt: time.Now(),
-		CreatedAt: time.Now(),
-		TotalTokens: store.TokenSummary{},
+		ID:            "run-4",
+		Status:        store.RunStatusRunning,
+		StartedAt:     time.Now(),
+		CreatedAt:     time.Now(),
+		TotalTokens:   store.TokenSummary{},
 		EstimatedCost: store.CostEstimate{Currency: "USD"},
 	}
 	if err := s.CreateRun(ctx, run); err != nil {
@@ -278,11 +278,11 @@ func TestBatchWriter_Stop(t *testing.T) {
 
 	// Create a run first
 	run := &store.Run{
-		ID:        "run-5",
-		Status:    store.RunStatusRunning,
-		StartedAt: time.Now(),
-		CreatedAt: time.Now(),
-		TotalTokens: store.TokenSummary{},
+		ID:            "run-5",
+		Status:        store.RunStatusRunning,
+		StartedAt:     time.Now(),
+		CreatedAt:     time.Now(),
+		TotalTokens:   store.TokenSummary{},
 		EstimatedCost: store.CostEstimate{Currency: "USD"},
 	}
 	if err := s.CreateRun(ctx, run); err != nil {
@@ -332,10 +332,10 @@ func TestBatchWriter_RunUpdates(t *testing.T) {
 
 	// Create a run
 	run := &store.Run{
-		ID:         "run-6",
-		Status:     store.RunStatusRunning,
-		StartedAt:  time.Now(),
-		CreatedAt:  time.Now(),
+		ID:        "run-6",
+		Status:    store.RunStatusRunning,
+		StartedAt: time.Now(),
+		CreatedAt: time.Now(),
 		TotalTokens: store.TokenSummary{
 			InputTokens:  100,
 			OutputTokens: 50,

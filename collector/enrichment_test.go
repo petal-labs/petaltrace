@@ -22,7 +22,7 @@ func TestEnricher_LLMCostCalculation(t *testing.T) {
 
 	cacheRead := 200
 	run := &store.Run{
-		ID: "run-1",
+		ID:          "run-1",
 		TotalTokens: store.TokenSummary{},
 		EstimatedCost: store.CostEstimate{
 			Currency:   "USD",
@@ -95,7 +95,7 @@ func TestEnricher_OpenAICost(t *testing.T) {
 	})
 
 	run := &store.Run{
-		ID: "run-2",
+		ID:          "run-2",
 		TotalTokens: store.TokenSummary{},
 		EstimatedCost: store.CostEstimate{
 			Currency:   "USD",
@@ -147,7 +147,7 @@ func TestEnricher_MultipleLLMSpans(t *testing.T) {
 	})
 
 	run := &store.Run{
-		ID: "run-3",
+		ID:          "run-3",
 		TotalTokens: store.TokenSummary{},
 		EstimatedCost: store.CostEstimate{
 			Currency:   "USD",
@@ -228,7 +228,7 @@ func TestEnricher_NonLLMSpanIgnored(t *testing.T) {
 	})
 
 	run := &store.Run{
-		ID: "run-4",
+		ID:          "run-4",
 		TotalTokens: store.TokenSummary{},
 		EstimatedCost: store.CostEstimate{
 			Currency: "USD",
@@ -267,7 +267,7 @@ func TestEnricher_ByNodeTracking(t *testing.T) {
 	})
 
 	run := &store.Run{
-		ID: "run-5",
+		ID:          "run-5",
 		TotalTokens: store.TokenSummary{},
 		EstimatedCost: store.CostEstimate{
 			Currency:   "USD",
@@ -317,7 +317,7 @@ func TestEnricher_UnknownModel(t *testing.T) {
 	})
 
 	run := &store.Run{
-		ID: "run-6",
+		ID:          "run-6",
 		TotalTokens: store.TokenSummary{},
 		EstimatedCost: store.CostEstimate{
 			Currency:   "USD",

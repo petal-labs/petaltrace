@@ -14,8 +14,8 @@ import (
 var builtinPricingFS embed.FS
 
 type PricingTable struct {
-	mu       sync.RWMutex
-	entries  map[string]ModelPricing
+	mu        sync.RWMutex
+	entries   map[string]ModelPricing
 	providers map[string]bool
 }
 

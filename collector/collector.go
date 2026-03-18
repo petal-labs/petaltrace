@@ -14,14 +14,14 @@ import (
 
 // Collector orchestrates OTLP receivers, span processing, and storage.
 type Collector struct {
-	cfg         CollectorConfig
-	logger      *slog.Logger
-	store       store.TraceStore
+	cfg          CollectorConfig
+	logger       *slog.Logger
+	store        store.TraceStore
 	httpReceiver *OTLPHTTPReceiver
 	grpcReceiver *OTLPGRPCReceiver
-	correlator  *Correlator
-	enricher    *Enricher
-	writer      *BatchWriter
+	correlator   *Correlator
+	enricher     *Enricher
+	writer       *BatchWriter
 
 	mu      sync.Mutex
 	running bool
@@ -30,15 +30,15 @@ type Collector struct {
 	wg      sync.WaitGroup
 
 	// Metrics
-	spansReceived int64
+	spansReceived  int64
 	spansProcessed int64
 }
 
 // CollectorConfig configures the collector.
 type CollectorConfig struct {
-	Store         store.TraceStore
-	PricingTable  *pricing.PricingTable
-	Logger        *slog.Logger
+	Store        store.TraceStore
+	PricingTable *pricing.PricingTable
+	Logger       *slog.Logger
 
 	// Receiver configuration
 	HTTPAddr string

@@ -194,12 +194,12 @@ func (c *Correlator) getOrCreateRun(ctx context.Context, runID string, in *Inges
 // createRun creates a new Run from span context.
 func (c *Correlator) createRun(runID string, in *IngestedSpan, isRoot bool) *store.Run {
 	run := &store.Run{
-		ID:         runID,
-		Status:     store.RunStatusRunning,
-		StartedAt:  in.StartTime,
-		CreatedAt:  time.Now(),
-		SourceKind: "otlp",
-		Tags:       make(map[string]string),
+		ID:          runID,
+		Status:      store.RunStatusRunning,
+		StartedAt:   in.StartTime,
+		CreatedAt:   time.Now(),
+		SourceKind:  "otlp",
+		Tags:        make(map[string]string),
 		TotalTokens: store.TokenSummary{},
 		EstimatedCost: store.CostEstimate{
 			Currency:   "USD",

@@ -38,13 +38,13 @@ type TraceStore interface {
 }
 
 type StoreStats struct {
-	DatabaseSize    int64     `json:"database_size_bytes"`
-	RunCount        int64     `json:"run_count"`
-	SpanCount       int64     `json:"span_count"`
-	DiffCount       int64     `json:"diff_count"`
-	OldestRun       time.Time `json:"oldest_run,omitempty"`
-	NewestRun       time.Time `json:"newest_run,omitempty"`
-	TopWorkflows    []WorkflowStats `json:"top_workflows"`
+	DatabaseSize int64           `json:"database_size_bytes"`
+	RunCount     int64           `json:"run_count"`
+	SpanCount    int64           `json:"span_count"`
+	DiffCount    int64           `json:"diff_count"`
+	OldestRun    time.Time       `json:"oldest_run,omitempty"`
+	NewestRun    time.Time       `json:"newest_run,omitempty"`
+	TopWorkflows []WorkflowStats `json:"top_workflows"`
 }
 
 type WorkflowStats struct {

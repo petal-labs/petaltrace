@@ -74,8 +74,8 @@ func (r *OTLPGRPCReceiver) Start(ctx context.Context) error {
 	r.listener = ln
 
 	r.server = grpc.NewServer(
-		grpc.MaxRecvMsgSize(64 * 1024 * 1024), // 64MB
-		grpc.MaxSendMsgSize(64 * 1024 * 1024),
+		grpc.MaxRecvMsgSize(64*1024*1024), // 64MB
+		grpc.MaxSendMsgSize(64*1024*1024),
 	)
 
 	collectorpb.RegisterTraceServiceServer(r.server, r)

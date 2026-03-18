@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    env:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+          cache: true
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test
+        if: matrix.os != 'ubuntu-latest'
+        run: go test ./...
+
+      - name: Test with coverage
+        if: matrix.os == 'ubuntu-latest'
+        run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: Upload coverage artifact
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage.out
+          path: coverage.out
+          if-no-files-found: error
+
+      - name: Upload coverage to Codecov
+        if: matrix.os == 'ubuntu-latest' && env.CODECOV_TOKEN != ''
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ env.CODECOV_TOKEN }}
+          files: ./coverage.out
+          fail_ci_if_error: true
+          verbose: true
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Format check
+        shell: bash
+        run: |
+          if [ -n "$(gofmt -l .)" ]; then
+            echo "The following files are not formatted:"
+            gofmt -l .
+            exit 1
+          fi
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+          cache: true
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.1.6
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+          cache: true
+
+      - name: Run gosec
+        uses: securego/gosec@v2.22.11
+        with:
+          # G101: env var names (not actual secrets)
+          # G104: unhandled errors on non-critical JSON encoding
+          # G115: integer overflow (uint64->int64 for nanoseconds is safe)
+          # G301/G306: standard CLI permissions (0755 dirs, 0644 files)
+          # G304: CLI intentionally handles user-specified paths
+          # G404: math/rand for retry jitter (not security-critical)
+          # G704: SSRF via taint analysis (test code uses dynamic URLs)
+          args: -exclude=G101,G104,G115,G301,G304,G306,G404,G704 ./...

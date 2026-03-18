@@ -10,20 +10,20 @@ func TestStructuralDiffer_CompareGraphs(t *testing.T) {
 	d := NewStructuralDiffer()
 
 	tests := []struct {
-		name          string
-		baseSpans     []*store.Span
-		compareSpans  []*store.Span
-		wantAdded     int
-		wantRemoved   int
-		wantChanged   int
+		name         string
+		baseSpans    []*store.Span
+		compareSpans []*store.Span
+		wantAdded    int
+		wantRemoved  int
+		wantChanged  int
 	}{
 		{
-			name:          "empty spans",
-			baseSpans:     []*store.Span{},
-			compareSpans:  []*store.Span{},
-			wantAdded:     0,
-			wantRemoved:   0,
-			wantChanged:   0,
+			name:         "empty spans",
+			baseSpans:    []*store.Span{},
+			compareSpans: []*store.Span{},
+			wantAdded:    0,
+			wantRemoved:  0,
+			wantChanged:  0,
 		},
 		{
 			name: "identical graphs",

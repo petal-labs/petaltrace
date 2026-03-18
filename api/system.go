@@ -178,13 +178,17 @@ func (s *Server) handleUpdatePricing(w http.ResponseWriter, r *http.Request) {
 	s.logger.Info("pricing updated", "provider", req.Provider, "model", req.Model)
 
 	s.writeJSON(w, http.StatusOK, map[string]any{
-		"status":  "updated",
-		"entry":   entry,
+		"status": "updated",
+		"entry":  entry,
 	})
 }
 
-// Version is the API version (set at build time or default)
-var Version = "0.1.0-dev"
+// Version variables (injected via ldflags at build time)
+var (
+	Version   = "dev"
+	Commit    = "unknown"
+	BuildDate = "unknown"
+)
 
 // HealthResponse is the response for GET /api/health
 type HealthResponse struct {
