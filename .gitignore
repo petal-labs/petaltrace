@@ -7,6 +7,7 @@
 *.dll
 *.so
 *.dylib
+/bin/
 
 # Test binary, built with `go test -c`
 *.test
@@ -33,3 +34,7 @@ go.work.sum
 
 # agents
 .spec/
+
+# UI build artifacts
+/ui/node_modules/
+/ui/dist/
