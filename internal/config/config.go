@@ -190,6 +190,7 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("storage.driver", "sqlite")
 	v.SetDefault("storage.sqlite.path", "~/.petaltrace/data.db")
 	v.SetDefault("storage.sqlite.wal_mode", true)
+	v.SetDefault("storage.postgres.dsn", "")
 
 	v.SetDefault("retention.default", "30d")
 	v.SetDefault("retention.failed_runs", "90d")

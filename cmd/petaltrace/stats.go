@@ -76,7 +76,11 @@ func runStats(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	fmt.Println("Database:")
-	fmt.Printf("  Path:          %s\n", cfg.Storage.SQLite.Path)
+	if cfg.Storage.Driver == "sqlite" {
+		fmt.Printf("  Path:          %s\n", cfg.Storage.SQLite.Path)
+	} else {
+		fmt.Printf("  Driver:        %s\n", cfg.Storage.Driver)
+	}
 	fmt.Printf("  Size:          %s\n", formatBytes(stats.DatabaseSize))
 	fmt.Printf("  Total Runs:    %d\n", stats.RunCount)
 	fmt.Printf("  Total Spans:   %d\n", stats.SpanCount)

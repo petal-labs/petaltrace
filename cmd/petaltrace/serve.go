@@ -16,7 +16,6 @@ import (
 	"github.com/petal-labs/petaltrace/collector"
 	"github.com/petal-labs/petaltrace/internal/config"
 	"github.com/petal-labs/petaltrace/pricing"
-	"github.com/petal-labs/petaltrace/store"
 )
 
 var serveCmd = &cobra.Command{
@@ -58,28 +57,19 @@ func runServe(cmd *cobra.Command, args []string) error {
 		"config", cfgFile,
 	)
 
-	// Initialize SQLite store
-	dbPath := cfg.Storage.SQLite.Path
-	if dbPath == "" {
-		dbPath = "./data/petaltrace.db"
+	if cfg.Storage.Driver == "sqlite" {
+		if err := os.MkdirAll(cfg.DataDir(), 0755); err != nil {
+			return fmt.Errorf("creating data directory: %w", err)
+		}
 	}
 
-	// Ensure data directory exists
-	dataDir := cfg.DataDir()
-	if err := os.MkdirAll(dataDir, 0755); err != nil {
-		return fmt.Errorf("creating data directory: %w", err)
-	}
-
-	traceStore, err := store.NewSQLiteStore(store.SQLiteOptions{
-		Path:    dbPath,
-		WALMode: cfg.Storage.SQLite.WALMode,
-	})
+	traceStore, err := openStoreFromConfig(cfg)
 	if err != nil {
 		return fmt.Errorf("opening database: %w", err)
 	}
 	defer traceStore.Close()
 
-	logger.Info("database initialized", "path", dbPath)
+	logger.Info("database initialized", "driver", cfg.Storage.Driver)
 
 	// Load pricing table
 	var pricingTable *pricing.PricingTable

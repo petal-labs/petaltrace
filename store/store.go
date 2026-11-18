@@ -2,8 +2,38 @@ package store
 
 import (
 	"context"
+	"errors"
 	"time"
 )
+
+// ErrUnsupportedOperation is returned when a storage backend does not support an operation.
+var ErrUnsupportedOperation = errors.New("operation is not supported by the selected storage backend")
+
+type StoreOptions struct {
+	Driver   string
+	SQLite   SQLiteOptions
+	Postgres PostgresOptions
+}
+
+// NewStore opens the configured storage backend.
+func NewStore(ctx context.Context, opts StoreOptions) (TraceStore, error) {
+	switch opts.Driver {
+	case "sqlite":
+		traceStore, err := NewSQLiteStore(opts.SQLite)
+		if err != nil {
+			return nil, err
+		}
+		return traceStore, nil
+	case "postgres":
+		traceStore, err := NewPostgresStore(ctx, opts.Postgres)
+		if err != nil {
+			return nil, err
+		}
+		return traceStore, nil
+	default:
+		return nil, errors.New("storage.driver must be 'sqlite' or 'postgres'")
+	}
+}
 
 type TraceStore interface {
 	Close() error

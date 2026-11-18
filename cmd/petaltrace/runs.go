@@ -328,14 +328,19 @@ func openStore() (store.TraceStore, error) {
 		return nil, fmt.Errorf("loading config: %w", err)
 	}
 
-	dbPath := cfg.Storage.SQLite.Path
-	if dbPath == "" {
-		dbPath = "./data/petaltrace.db"
-	}
+	return openStoreFromConfig(cfg)
+}
 
-	return store.NewSQLiteStore(store.SQLiteOptions{
-		Path:    dbPath,
-		WALMode: cfg.Storage.SQLite.WALMode,
+func openStoreFromConfig(cfg *config.Config) (store.TraceStore, error) {
+	return store.NewStore(context.Background(), store.StoreOptions{
+		Driver: cfg.Storage.Driver,
+		SQLite: store.SQLiteOptions{
+			Path:    cfg.Storage.SQLite.Path,
+			WALMode: cfg.Storage.SQLite.WALMode,
+		},
+		Postgres: store.PostgresOptions{
+			DSN: cfg.Storage.Postgres.DSN,
+		},
 	})
 }
 

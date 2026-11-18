@@ -41,19 +41,13 @@ func runSeed(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	dbPath := cfg.Storage.SQLite.Path
-	if dbPath == "" {
-		dbPath = "./data/petaltrace.db"
+	if cfg.Storage.Driver == "sqlite" {
+		if err := os.MkdirAll(cfg.DataDir(), 0755); err != nil {
+			return fmt.Errorf("creating data directory: %w", err)
+		}
 	}
 
-	if err := os.MkdirAll(cfg.DataDir(), 0755); err != nil {
-		return fmt.Errorf("creating data directory: %w", err)
-	}
-
-	traceStore, err := store.NewSQLiteStore(store.SQLiteOptions{
-		Path:    dbPath,
-		WALMode: cfg.Storage.SQLite.WALMode,
-	})
+	traceStore, err := openStoreFromConfig(cfg)
 	if err != nil {
 		return fmt.Errorf("opening database: %w", err)
 	}
