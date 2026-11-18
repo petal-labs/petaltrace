@@ -17,8 +17,8 @@ func TestLoadDefaults(t *testing.T) {
 		t.Errorf("Server.Port = %d, want 8090", cfg.Server.Port)
 	}
 
-	if cfg.Server.Host != "0.0.0.0" {
-		t.Errorf("Server.Host = %s, want 0.0.0.0", cfg.Server.Host)
+	if cfg.Server.Host != "127.0.0.1" {
+		t.Errorf("Server.Host = %s, want 127.0.0.1", cfg.Server.Host)
 	}
 
 	if cfg.Collector.OTLPGRPCPort != 4317 {
@@ -173,6 +173,35 @@ func TestValidation(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "public server host rejected without authentication",
+			modify: func(c *Config) {
+				c.Server.Host = "0.0.0.0"
+			},
+			wantErr: true,
+		},
+		{
+			name: "public server host rejected when auth flag is enabled",
+			modify: func(c *Config) {
+				c.Server.Host = "0.0.0.0"
+				c.Auth.Enabled = true
+			},
+			wantErr: true,
+		},
+		{
+			name: "unsupported auth flag is rejected",
+			modify: func(c *Config) {
+				c.Auth.Enabled = true
+			},
+			wantErr: true,
+		},
+		{
+			name: "localhost server host is valid",
+			modify: func(c *Config) {
+				c.Server.Host = "localhost"
+			},
+			wantErr: false,
+		},
+		{
 			name: "invalid server port - too low",
 			modify: func(c *Config) {
 				c.Server.Port = 0
@@ -287,7 +316,7 @@ func defaultConfig() *Config {
 	return &Config{
 		Server: ServerConfig{
 			Port: 8090,
-			Host: "0.0.0.0",
+			Host: "127.0.0.1",
 		},
 		Collector: CollectorConfig{
 			OTLPGRPCPort: 4317,

@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/petal-labs/petaltrace/internal/netutil"
 	"github.com/petal-labs/petaltrace/pricing"
 	"github.com/petal-labs/petaltrace/store"
 )
@@ -61,10 +62,16 @@ func NewCollector(cfg CollectorConfig) (*Collector, error) {
 		cfg.Logger = slog.Default()
 	}
 	if cfg.HTTPAddr == "" {
-		cfg.HTTPAddr = ":4318"
+		cfg.HTTPAddr = "127.0.0.1:4318"
 	}
 	if cfg.GRPCAddr == "" {
-		cfg.GRPCAddr = ":4317"
+		cfg.GRPCAddr = "127.0.0.1:4317"
+	}
+	if !netutil.IsLoopbackAddr(cfg.HTTPAddr) {
+		return nil, errors.New("OTLP HTTP address must use a loopback host because network authentication is not implemented")
+	}
+	if !netutil.IsLoopbackAddr(cfg.GRPCAddr) {
+		return nil, errors.New("OTLP gRPC address must use a loopback host because network authentication is not implemented")
 	}
 	if cfg.BatchSize <= 0 {
 		cfg.BatchSize = 100

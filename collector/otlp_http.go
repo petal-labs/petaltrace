@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/petal-labs/petaltrace/internal/netutil"
 	collectorpb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"google.golang.org/protobuf/proto"
 )
@@ -44,7 +45,7 @@ func NewOTLPHTTPReceiver(cfg OTLPHTTPConfig) *OTLPHTTPReceiver {
 		cfg.Logger = slog.Default()
 	}
 	if cfg.Addr == "" {
-		cfg.Addr = ":4318"
+		cfg.Addr = "127.0.0.1:4318"
 	}
 
 	return &OTLPHTTPReceiver{
@@ -56,6 +57,10 @@ func NewOTLPHTTPReceiver(cfg OTLPHTTPConfig) *OTLPHTTPReceiver {
 
 // Start begins accepting HTTP connections.
 func (r *OTLPHTTPReceiver) Start(ctx context.Context) error {
+	if !netutil.IsLoopbackAddr(r.addr) {
+		return fmt.Errorf("OTLP HTTP address must use a loopback host because network authentication is not implemented")
+	}
+
 	r.mu.Lock()
 	if r.running {
 		r.mu.Unlock()

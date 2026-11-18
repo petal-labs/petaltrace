@@ -342,7 +342,7 @@ For production, consider:
 observability:
   petaltrace:
     enabled: true
-    endpoint: "http://petaltrace.internal:4318"
+    endpoint: "http://127.0.0.1:4318"
     capture_mode: standard
     sample_rate: 0.1
     always_capture_errors: true
@@ -353,6 +353,8 @@ observability:
       service: research-api
       version: "2.1.0"
 ```
+
+This endpoint works when PetalFlow and PetalTrace share the same host. PetalTrace currently binds OTLP receivers to loopback and does not support unauthenticated remote ingestion.
 
 ### PetalTrace Configuration
 

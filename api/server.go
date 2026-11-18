@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/petal-labs/petaltrace/internal/netutil"
 	"github.com/petal-labs/petaltrace/pricing"
 	"github.com/petal-labs/petaltrace/store"
 )
@@ -38,7 +39,7 @@ func NewServer(cfg ServerConfig) *Server {
 		cfg.Logger = slog.Default()
 	}
 	if cfg.Addr == "" {
-		cfg.Addr = ":8090"
+		cfg.Addr = "127.0.0.1:8090"
 	}
 
 	s := &Server{
@@ -54,19 +55,13 @@ func NewServer(cfg ServerConfig) *Server {
 
 // Start starts the HTTP server
 func (s *Server) Start(ctx context.Context) error {
-	mux := http.NewServeMux()
-
-	// Register routes
-	s.registerRoutes(mux)
-
-	// Apply middleware
-	handler := s.loggingMiddleware(mux)
-	handler = s.corsMiddleware(handler)
-	handler = s.recoveryMiddleware(handler)
+	if !netutil.IsLoopbackAddr(s.addr) {
+		return fmt.Errorf("API server address must use a loopback host because network authentication is not implemented")
+	}
 
 	s.httpServer = &http.Server{
 		Addr:         s.addr,
-		Handler:      handler,
+		Handler:      s.handler(),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  60 * time.Second,
@@ -81,6 +76,14 @@ func (s *Server) Start(ctx context.Context) error {
 	}()
 
 	return nil
+}
+
+func (s *Server) handler() http.Handler {
+	mux := http.NewServeMux()
+	s.registerRoutes(mux)
+
+	handler := s.loggingMiddleware(mux)
+	return s.recoveryMiddleware(handler)
 }
 
 // Stop gracefully stops the HTTP server
@@ -158,21 +161,6 @@ func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 			"status", wrapped.statusCode,
 			"duration", time.Since(start),
 		)
-	})
-}
-
-func (s *Server) corsMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusNoContent)
-			return
-		}
-
-		next.ServeHTTP(w, r)
 	})
 }
 

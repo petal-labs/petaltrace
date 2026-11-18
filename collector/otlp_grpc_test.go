@@ -15,6 +15,23 @@ import (
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
+func TestOTLPGRPCReceiver_DefaultAddressIsLoopback(t *testing.T) {
+	receiver := NewOTLPGRPCReceiver(OTLPGRPCConfig{})
+	if got, want := receiver.Addr(), "127.0.0.1:4317"; got != want {
+		t.Errorf("default address = %q, want %q", got, want)
+	}
+}
+
+func TestOTLPGRPCReceiver_StartRejectsNonLoopbackAddress(t *testing.T) {
+	receiver := NewOTLPGRPCReceiver(OTLPGRPCConfig{Addr: "0.0.0.0:0"})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if err := receiver.Start(ctx); err == nil {
+		t.Fatal("Start() error = nil, want non-loopback address error")
+	}
+}
+
 func TestOTLPGRPCReceiver_StartStop(t *testing.T) {
 	receiver := NewOTLPGRPCReceiver(OTLPGRPCConfig{
 		Addr: "127.0.0.1:0",

@@ -37,11 +37,12 @@ Start the daemon:
 ```
 
 This starts:
-- OTLP/HTTP collector on `:4318`
-- OTLP/gRPC collector on `:4317`
-- HTTP API on `:8090`
+- OTLP/HTTP collector on `127.0.0.1:4318`
+- OTLP/gRPC collector on `127.0.0.1:4317`
+- HTTP API on `127.0.0.1:8090`
 
 Configure your OpenTelemetry SDK to send traces to `http://localhost:4318`.
+PetalTrace currently binds these unauthenticated services to loopback only.
 
 ## Web UI
 
@@ -139,7 +140,7 @@ Create `petaltrace.yaml`:
 
 ```yaml
 server:
-  host: "0.0.0.0"
+  host: "127.0.0.1"
   port: 8090
 
 collector:
