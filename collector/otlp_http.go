@@ -11,9 +11,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/petal-labs/petaltrace/internal/netutil"
 	collectorpb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/petal-labs/petaltrace/internal/netutil"
 )
 
 // OTLPHTTPReceiver receives OTLP traces over HTTP.

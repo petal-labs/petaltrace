@@ -9,13 +9,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/petal-labs/petaltrace/internal/netutil"
 	collectorpb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
+
+	"github.com/petal-labs/petaltrace/internal/netutil"
 )
 
 // OTLPGRPCReceiver receives OTLP traces over gRPC.
