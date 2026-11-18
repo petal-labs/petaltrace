@@ -95,14 +95,6 @@ CREATE INDEX idx_spans_kind ON spans(run_id, kind);
 CREATE INDEX idx_spans_parent ON spans(parent_id) WHERE parent_id IS NOT NULL;
 CREATE INDEX idx_spans_trace ON spans(trace_id);
 
--- Full-text search on LLM prompts and completions
-CREATE VIRTUAL TABLE spans_fts USING fts4(
-    span_id,
-    prompt_text,
-    completion_text,
-    tokenize=porter
-);
-
 -- Cached diffs
 CREATE TABLE diffs (
     id              TEXT PRIMARY KEY,
@@ -133,6 +125,47 @@ CREATE TABLE pricing (
 CREATE INDEX idx_pricing_lookup ON pricing(provider, model);
 `,
 	},
+	{
+		Version: 2,
+		Name:    "fts5_search_index",
+		Up: `
+CREATE VIRTUAL TABLE IF NOT EXISTS spans_fts5 USING fts5(
+    span_id UNINDEXED,
+    prompt_text,
+    completion_text,
+    tokenize='porter'
+);
+`,
+	},
+}
+
+var migrationDataMigrations = map[int]func(*sql.Tx) error{
+	2: migrateLegacyFTS4SearchIndex,
+}
+
+func migrateLegacyFTS4SearchIndex(tx *sql.Tx) error {
+	var exists int
+	if err := tx.QueryRow(`
+		SELECT EXISTS(
+			SELECT 1 FROM sqlite_master
+			WHERE type = 'table' AND name = 'spans_fts_content'
+		)
+	`).Scan(&exists); err != nil {
+		return fmt.Errorf("checking for legacy FTS4 content: %w", err)
+	}
+	if exists == 0 {
+		return nil
+	}
+
+	if _, err := tx.Exec(`
+		INSERT INTO spans_fts5 (span_id, prompt_text, completion_text)
+		SELECT c0span_id, c1prompt_text, c2completion_text
+		FROM spans_fts_content
+	`); err != nil {
+		return fmt.Errorf("copying legacy FTS4 search index: %w", err)
+	}
+
+	return nil
 }
 
 func RunMigrations(db *sql.DB) error {
@@ -165,6 +198,13 @@ func RunMigrations(db *sql.DB) error {
 		if _, err := tx.Exec(m.Up); err != nil {
 			tx.Rollback()
 			return fmt.Errorf("running migration %d (%s): %w", m.Version, m.Name, err)
+		}
+
+		if migrate := migrationDataMigrations[m.Version]; migrate != nil {
+			if err := migrate(tx); err != nil {
+				tx.Rollback()
+				return fmt.Errorf("migrating data for migration %d (%s): %w", m.Version, m.Name, err)
+			}
 		}
 
 		if _, err := tx.Exec(

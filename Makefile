@@ -2,7 +2,7 @@
 # Build and development automation
 
 .PHONY: all build test test-cover coverage lint fmt vet clean install-hooks \
-        build-cli install-cli release-build help
+        build-cli install-cli release-build release-smoke-test help
 
 # Version information
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -30,6 +30,7 @@ LDFLAGS = -s -w \
 # Output directories
 BIN_DIR = bin
 COVERAGE_DIR = coverage
+SMOKE_BINARY ?= $(BIN_DIR)/petaltrace
 
 # Default target
 all: lint test build
@@ -130,6 +131,10 @@ release-build:
 
 	@echo "Release binaries built in $(BIN_DIR)/"
 
+# Verify a built binary can initialize SQLite with CGO disabled.
+release-smoke-test:
+	./scripts/release-smoke-test.sh "$(SMOKE_BINARY)"
+
 # Show help
 help:
 	@echo "PetalTrace Makefile"
@@ -150,6 +155,7 @@ help:
 	@echo "  clean         Remove build artifacts"
 	@echo "  install-hooks Install git pre-commit hook"
 	@echo "  release-build Build binaries for all platforms"
+	@echo "  release-smoke-test Smoke-test a binary (SMOKE_BINARY=$(SMOKE_BINARY))"
 	@echo "  help          Show this help"
 	@echo ""
 	@echo "Variables:"

@@ -178,8 +178,12 @@ make install-hooks  # Install git pre-commit hook
 ### Release
 
 ```bash
-make release-build  # Build binaries for all platforms
+make build               # Build the native CLI binary
+make release-smoke-test  # Smoke-test bin/petaltrace
+make release-build       # Build binaries for all platforms
 ```
+
+The SQLite driver is pure Go, so release builds do not require a C compiler or CGO.
 
 ## License
 
