@@ -225,7 +225,7 @@ func (s *SQLiteStore) UpdateSpan(ctx context.Context, span *Span) error {
 
 func (s *SQLiteStore) IndexSpanText(ctx context.Context, spanID, promptText, completionText string) error {
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO spans_fts (span_id, prompt_text, completion_text)
+		INSERT INTO spans_fts5 (span_id, prompt_text, completion_text)
 		VALUES (?, ?, ?)
 	`, spanID, promptText, completionText)
 
@@ -248,8 +248,8 @@ func (s *SQLiteStore) SearchSpans(ctx context.Context, query string, limit int) 
 			s.error_code, s.error_message, s.error_details,
 			s.attributes, s.created_at
 		FROM spans s
-		JOIN spans_fts fts ON s.id = fts.span_id
-		WHERE spans_fts MATCH ?
+		JOIN spans_fts5 fts ON s.id = fts.span_id
+		WHERE spans_fts5 MATCH ?
 		ORDER BY s.started_at DESC
 		LIMIT ?
 	`, query, limit)

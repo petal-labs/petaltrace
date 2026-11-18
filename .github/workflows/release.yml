@@ -66,6 +66,9 @@ jobs:
           echo "Building windows/amd64..."
           CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o dist/petaltrace-windows-amd64.exe ./main.go
 
+      - name: Smoke test Linux release artifact
+        run: scripts/release-smoke-test.sh dist/petaltrace-linux-amd64
+
       - name: Generate checksums
         run: |
           cd dist
