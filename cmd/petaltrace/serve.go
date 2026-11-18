@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -91,8 +93,8 @@ func runServe(cmd *cobra.Command, args []string) error {
 	}
 
 	// Determine ports
-	httpAddr := fmt.Sprintf(":%d", cfg.Collector.OTLPHTTPPort)
-	grpcAddr := fmt.Sprintf(":%d", cfg.Collector.OTLPGRPCPort)
+	httpAddr := fmt.Sprintf("127.0.0.1:%d", cfg.Collector.OTLPHTTPPort)
+	grpcAddr := fmt.Sprintf("127.0.0.1:%d", cfg.Collector.OTLPGRPCPort)
 
 	// Create collector
 	coll, err := collector.NewCollector(collector.CollectorConfig{
@@ -121,7 +123,7 @@ func runServe(cmd *cobra.Command, args []string) error {
 	)
 
 	// Start API server
-	apiAddr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
+	apiAddr := net.JoinHostPort(cfg.Server.Host, strconv.Itoa(cfg.Server.Port))
 	apiServer := api.NewServer(api.ServerConfig{
 		Store:        traceStore,
 		PricingTable: pricingTable,

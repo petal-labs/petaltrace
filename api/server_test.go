@@ -137,8 +137,8 @@ func TestNewServer(t *testing.T) {
 		t.Error("store is nil")
 	}
 
-	if s.addr != ":8090" {
-		t.Errorf("default addr = %q, want %q", s.addr, ":8090")
+	if s.addr != "127.0.0.1:8090" {
+		t.Errorf("default addr = %q, want %q", s.addr, "127.0.0.1:8090")
 	}
 
 	if s.liveSubscribers == nil {
@@ -153,6 +153,18 @@ func TestNewServer(t *testing.T) {
 
 	if s2.addr != ":9000" {
 		t.Errorf("custom addr = %q, want %q", s2.addr, ":9000")
+	}
+}
+
+func TestServer_StartRejectsNonLoopbackAddress(t *testing.T) {
+	s := NewServer(ServerConfig{
+		Store: newMockStore(),
+		Addr:  "0.0.0.0:0",
+	})
+
+	if err := s.Start(context.Background()); err == nil {
+		_ = s.Stop()
+		t.Fatal("Start() error = nil, want non-loopback address error")
 	}
 }
 
@@ -217,36 +229,18 @@ func TestServer_writeError(t *testing.T) {
 	}
 }
 
-func TestServer_corsMiddleware(t *testing.T) {
+func TestServer_HandlerDoesNotAllowArbitraryOrigins(t *testing.T) {
 	ms := newMockStore()
 	s := NewServer(ServerConfig{Store: ms})
 
-	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	handler := s.corsMiddleware(inner)
-
-	// Test OPTIONS request
+	handler := s.handler()
 	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodOptions, "/", nil)
+	r := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	r.Header.Set("Origin", "https://untrusted.example")
 	handler.ServeHTTP(w, r)
 
-	if w.Code != http.StatusNoContent {
-		t.Errorf("OPTIONS status code = %d, want %d", w.Code, http.StatusNoContent)
-	}
-
-	if w.Header().Get("Access-Control-Allow-Origin") != "*" {
-		t.Error("missing CORS allow origin header")
-	}
-
-	// Test normal request
-	w2 := httptest.NewRecorder()
-	r2 := httptest.NewRequest(http.MethodGet, "/", nil)
-	handler.ServeHTTP(w2, r2)
-
-	if w2.Code != http.StatusOK {
-		t.Errorf("GET status code = %d, want %d", w2.Code, http.StatusOK)
+	if got := w.Header().Get("Access-Control-Allow-Origin"); got != "" {
+		t.Errorf("Access-Control-Allow-Origin = %q, want no cross-origin permission", got)
 	}
 }
 

@@ -15,17 +15,15 @@ petaltrace serve --config /path/to/petaltrace.yaml
 ```yaml
 # Server configuration
 server:
-  # HTTP API server address
-  address: ":8090"      # default: ":8090"
-  host: "0.0.0.0"       # default: "0.0.0.0"
+  # API host must be loopback until network authentication is implemented.
+  host: "127.0.0.1"     # default: "127.0.0.1"
   port: 8090            # default: 8090
 
 # OTLP collector configuration
 collector:
-  # OTLP/HTTP receiver port
+  # Receivers bind to loopback; only the ports are configurable.
   otlp_http_port: 4318  # default: 4318
 
-  # OTLP/gRPC receiver port
   otlp_grpc_port: 4317  # default: 4317
 
   # Batch processing settings
@@ -76,10 +74,12 @@ mcp:
   # Transport mode (only stdio supported)
   transport: "stdio"     # default: "stdio"
 
-# Authentication (future)
+# Authentication is not implemented. Setting enabled: true is rejected.
 auth:
   enabled: false         # default: false
 ```
+
+The API and OTLP receivers bind to loopback only. PetalTrace rejects non-loopback API hosts and does not allow CORS origins. Do not expose the service through public or container-network interfaces until network authentication is implemented.
 
 ## Environment Variables
 
@@ -87,8 +87,7 @@ All configuration options can be set via environment variables using the `PETALT
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `PETALTRACE_SERVER_ADDRESS` | HTTP API address | `:8090` |
-| `PETALTRACE_SERVER_HOST` | HTTP API host | `0.0.0.0` |
+| `PETALTRACE_SERVER_HOST` | HTTP API host (loopback only) | `127.0.0.1` |
 | `PETALTRACE_SERVER_PORT` | HTTP API port | `8090` |
 | `PETALTRACE_COLLECTOR_OTLP_HTTP_PORT` | OTLP/HTTP port | `4318` |
 | `PETALTRACE_COLLECTOR_OTLP_GRPC_PORT` | OTLP/gRPC port | `4317` |
@@ -292,8 +291,8 @@ collector:
 
 ```yaml
 server:
-  address: ":8090"
-  host: "0.0.0.0"
+  host: "127.0.0.1"
+  port: 8090
 
 storage:
   path: "/var/lib/petaltrace/data.db"
@@ -319,10 +318,12 @@ pricing:
 
 ### Docker
 
+The daemon binds to loopback and does not support public/container-network access without authentication. Docker port publishing to a container interface will not make these loopback listeners reachable; use a local-only deployment until authenticated network access is supported.
+
 ```yaml
 server:
-  address: ":8090"
-  host: "0.0.0.0"
+  host: "127.0.0.1"
+  port: 8090
 
 storage:
   path: "/data/petaltrace.db"
@@ -332,15 +333,4 @@ collector:
   otlp_grpc_port: 4317
 ```
 
-With environment variable overrides:
-
-```bash
-docker run -d \
-  -e PETALTRACE_STORAGE_PATH=/data/petaltrace.db \
-  -e PETALTRACE_RETENTION_DEFAULT=60d \
-  -v petaltrace-data:/data \
-  -p 8090:8090 \
-  -p 4317:4317 \
-  -p 4318:4318 \
-  petaltrace serve
-```
+For local-only use, run the container with host networking on a supported platform. Do not publish the ports to external interfaces.

@@ -72,6 +72,18 @@ func TestCollector_StartStop(t *testing.T) {
 	}
 }
 
+func TestNewCollectorRejectsNonLoopbackAddresses(t *testing.T) {
+	s := setupTestStore(t)
+	_, err := NewCollector(CollectorConfig{
+		Store:    s,
+		HTTPAddr: "0.0.0.0:4318",
+		GRPCAddr: "127.0.0.1:4317",
+	})
+	if err == nil {
+		t.Fatal("NewCollector() error = nil, want non-loopback HTTP address error")
+	}
+}
+
 func TestCollector_ReceiveSpansHTTP(t *testing.T) {
 	s := setupTestStore(t)
 	pt, _ := pricing.LoadBuiltin()

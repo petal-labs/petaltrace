@@ -49,8 +49,8 @@ petaltrace serve --config /etc/petaltrace/petaltrace.yaml
 ```
 time=2026-03-17T18:29:08.672-07:00 level=INFO msg="starting petaltrace" version=0.1.0-dev
 time=2026-03-17T18:29:08.675-07:00 level=INFO msg="database initialized" path=/Users/user/.petaltrace/data.db
-time=2026-03-17T18:29:08.676-07:00 level=INFO msg="starting API server" addr=0.0.0.0:8090
-time=2026-03-17T18:29:08.676-07:00 level=INFO msg="petaltrace ready" api=0.0.0.0:8090 otlp_http=[::]:4318 otlp_grpc=[::]:4317
+time=2026-03-17T18:29:08.676-07:00 level=INFO msg="starting API server" addr=127.0.0.1:8090
+time=2026-03-17T18:29:08.676-07:00 level=INFO msg="petaltrace ready" api=127.0.0.1:8090 otlp_http=127.0.0.1:4318 otlp_grpc=127.0.0.1:4317
 ```
 
 Shutdown gracefully with `Ctrl+C`.

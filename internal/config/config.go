@@ -10,6 +10,8 @@ import (
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/spf13/viper"
+
+	"github.com/petal-labs/petaltrace/internal/netutil"
 )
 
 type Config struct {
@@ -177,7 +179,7 @@ func stringToDurationHookFunc() mapstructure.DecodeHookFunc {
 
 func setDefaults(v *viper.Viper) {
 	v.SetDefault("server.port", 8090)
-	v.SetDefault("server.host", "0.0.0.0")
+	v.SetDefault("server.host", "127.0.0.1")
 
 	v.SetDefault("collector.otlp_grpc_port", 4317)
 	v.SetDefault("collector.otlp_http_port", 4318)
@@ -205,6 +207,12 @@ func setDefaults(v *viper.Viper) {
 func (c *Config) Validate() error {
 	if c.Server.Port < 1 || c.Server.Port > 65535 {
 		return fmt.Errorf("server.port must be between 1 and 65535")
+	}
+	if !netutil.IsLoopbackHost(c.Server.Host) {
+		return fmt.Errorf("server.host must be a loopback address because network authentication is not implemented")
+	}
+	if c.Auth.Enabled {
+		return fmt.Errorf("auth.enabled is not supported; network listeners are restricted to loopback")
 	}
 
 	if c.Collector.OTLPGRPCPort < 1 || c.Collector.OTLPGRPCPort > 65535 {

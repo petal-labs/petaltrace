@@ -15,6 +15,8 @@ import (
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
+
+	"github.com/petal-labs/petaltrace/internal/netutil"
 )
 
 // OTLPGRPCReceiver receives OTLP traces over gRPC.
@@ -48,7 +50,7 @@ func NewOTLPGRPCReceiver(cfg OTLPGRPCConfig) *OTLPGRPCReceiver {
 		cfg.Logger = slog.Default()
 	}
 	if cfg.Addr == "" {
-		cfg.Addr = ":4317"
+		cfg.Addr = "127.0.0.1:4317"
 	}
 
 	return &OTLPGRPCReceiver{
@@ -60,6 +62,10 @@ func NewOTLPGRPCReceiver(cfg OTLPGRPCConfig) *OTLPGRPCReceiver {
 
 // Start begins accepting gRPC connections.
 func (r *OTLPGRPCReceiver) Start(ctx context.Context) error {
+	if !netutil.IsLoopbackAddr(r.addr) {
+		return fmt.Errorf("OTLP gRPC address must use a loopback host because network authentication is not implemented")
+	}
+
 	r.mu.Lock()
 	if r.running {
 		r.mu.Unlock()
