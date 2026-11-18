@@ -49,14 +49,6 @@ func runGC(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("loading config: %w", err)
 	}
 
-	traceStore, err := openStore()
-	if err != nil {
-		return err
-	}
-	defer traceStore.Close()
-
-	ctx := context.Background()
-
 	// Determine retention period
 	var retentionDuration time.Duration
 	if gcRetain != "" {
@@ -66,15 +58,28 @@ func runGC(cmd *cobra.Command, args []string) error {
 		}
 	} else {
 		retentionDuration = cfg.Retention.Default.Duration
-		if retentionDuration == 0 {
-			retentionDuration = 30 * 24 * time.Hour // 30 days default
-		}
 	}
 
+	fmt.Println("Garbage Collection")
+	fmt.Println("==================")
+	if retentionDuration == 0 {
+		fmt.Println("Retention period: never")
+		if gcDryRun {
+			fmt.Println("Mode: dry-run (no deletions)")
+		}
+		fmt.Println("No runs to delete.")
+		return nil
+	}
+
+	traceStore, err := openStore()
+	if err != nil {
+		return err
+	}
+	defer traceStore.Close()
+
+	ctx := context.Background()
 	cutoffTime := time.Now().Add(-retentionDuration)
 
-	fmt.Printf("Garbage Collection\n")
-	fmt.Printf("==================\n")
 	fmt.Printf("Retention period: %s\n", formatRetention(retentionDuration))
 	fmt.Printf("Deleting runs older than: %s\n", cutoffTime.Format("2006-01-02 15:04:05"))
 	if gcIncludeStarred {
