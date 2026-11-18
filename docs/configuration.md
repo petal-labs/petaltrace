@@ -38,11 +38,17 @@ collector:
 
 # Storage configuration
 storage:
-  # Database file path
-  path: "~/.petaltrace/data.db"  # default: "~/.petaltrace/data.db"
+  driver: sqlite
+  sqlite:
+    # Database file path
+    path: "~/.petaltrace/data.db"  # default: "~/.petaltrace/data.db"
 
-  # Enable WAL mode for better concurrent performance
-  wal_mode: true                  # default: true
+    # Enable WAL mode for better concurrent performance
+    wal_mode: true                 # default: true
+
+  # Required only when driver is postgres
+  postgres:
+    dsn: ""
 
 # Data retention configuration
 retention:
@@ -91,10 +97,12 @@ All configuration options can be set via environment variables using the `PETALT
 | `PETALTRACE_SERVER_PORT` | HTTP API port | `8090` |
 | `PETALTRACE_COLLECTOR_OTLP_HTTP_PORT` | OTLP/HTTP port | `4318` |
 | `PETALTRACE_COLLECTOR_OTLP_GRPC_PORT` | OTLP/gRPC port | `4317` |
+| `PETALTRACE_STORAGE_DRIVER` | Storage backend: `sqlite` or `postgres` | `sqlite` |
+| `PETALTRACE_STORAGE_POSTGRES_DSN` | PostgreSQL connection string | |
 | `PETALTRACE_COLLECTOR_BATCH_SIZE` | Batch size | `100` |
 | `PETALTRACE_COLLECTOR_FLUSH_INTERVAL` | Flush interval | `1s` |
-| `PETALTRACE_STORAGE_PATH` | Database path | `~/.petaltrace/data.db` |
-| `PETALTRACE_STORAGE_WAL_MODE` | Enable WAL mode | `true` |
+| `PETALTRACE_STORAGE_SQLITE_PATH` | SQLite database path | `~/.petaltrace/data.db` |
+| `PETALTRACE_STORAGE_SQLITE_WAL_MODE` | Enable SQLite WAL mode | `true` |
 | `PETALTRACE_RETENTION_DEFAULT` | Default retention | `30d` |
 | `PETALTRACE_RETENTION_FAILED_RUNS` | Failed run retention | `90d` |
 | `PETALTRACE_PRICING_OVERRIDES_PATH` | Pricing overrides path | |
@@ -118,13 +126,15 @@ Duration values support human-readable formats:
 
 ### Database Location
 
-The default database location is `~/.petaltrace/data.db`. The directory is created automatically if it doesn't exist.
+SQLite is the default backend. Its database location is `~/.petaltrace/data.db`; the directory is created automatically if it doesn't exist.
 
 For production deployments, consider a dedicated data directory:
 
 ```yaml
 storage:
-  path: "/var/lib/petaltrace/data.db"
+  driver: sqlite
+  sqlite:
+    path: "/var/lib/petaltrace/data.db"
 ```
 
 ### WAL Mode
@@ -139,8 +149,24 @@ Only disable WAL mode if you have specific requirements:
 
 ```yaml
 storage:
-  wal_mode: false
+  sqlite:
+    wal_mode: false
 ```
+
+### PostgreSQL
+
+Select PostgreSQL with `storage.driver` and provide `storage.postgres.dsn`:
+
+```yaml
+storage:
+  driver: postgres
+  postgres:
+    dsn: "postgres://USER:PASSWORD@HOST:5432/DATABASE?sslmode=require"
+```
+
+Do not commit credentials. The DSN can be supplied with `PETALTRACE_STORAGE_POSTGRES_DSN`; set `PETALTRACE_STORAGE_DRIVER=postgres` to select the backend.
+
+The PostgreSQL backend currently supports run/span persistence, run listing and aggregates, and storage health/statistics. Full-text search, diff persistence, pricing-table writes, and the store-level garbage-collection operation are not yet supported by PostgreSQL.
 
 ## Pricing Configuration
 
@@ -274,10 +300,13 @@ petaltrace gc --include-starred
 
 ```yaml
 server:
-  address: ":8090"
+  host: "127.0.0.1"
+  port: 8090
 
 storage:
-  path: "./data/petaltrace.db"
+  driver: sqlite
+  sqlite:
+    path: "./data/petaltrace.db"
 
 retention:
   default: "7d"
@@ -295,8 +324,10 @@ server:
   port: 8090
 
 storage:
-  path: "/var/lib/petaltrace/data.db"
-  wal_mode: true
+  driver: sqlite
+  sqlite:
+    path: "/var/lib/petaltrace/data.db"
+    wal_mode: true
 
 collector:
   batch_size: 500
@@ -326,7 +357,9 @@ server:
   port: 8090
 
 storage:
-  path: "/data/petaltrace.db"
+  driver: sqlite
+  sqlite:
+    path: "/data/petaltrace.db"
 
 collector:
   otlp_http_port: 4318

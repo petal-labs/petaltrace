@@ -15,7 +15,6 @@ import (
 	"github.com/petal-labs/petaltrace/mcp"
 	"github.com/petal-labs/petaltrace/pricing"
 	"github.com/petal-labs/petaltrace/replay"
-	"github.com/petal-labs/petaltrace/store"
 )
 
 var mcpCmd = &cobra.Command{
@@ -63,22 +62,13 @@ func runMCP(cmd *cobra.Command, args []string) error {
 		"transport", "stdio",
 	)
 
-	// Initialize SQLite store
-	dbPath := cfg.Storage.SQLite.Path
-	if dbPath == "" {
-		dbPath = "./data/petaltrace.db"
-	}
-
-	traceStore, err := store.NewSQLiteStore(store.SQLiteOptions{
-		Path:    dbPath,
-		WALMode: cfg.Storage.SQLite.WALMode,
-	})
+	traceStore, err := openStoreFromConfig(cfg)
 	if err != nil {
 		return fmt.Errorf("opening database: %w", err)
 	}
 	defer traceStore.Close()
 
-	logger.Info("database initialized", "path", dbPath)
+	logger.Info("database initialized", "driver", cfg.Storage.Driver)
 
 	// Load pricing table
 	var pricingTable *pricing.PricingTable

@@ -6,6 +6,35 @@ on:
   pull_request:
 
 jobs:
+  postgres-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: petaltrace
+          POSTGRES_PASSWORD: petaltrace
+          POSTGRES_DB: petaltrace_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U petaltrace -d petaltrace_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.x"
+          cache: true
+
+      - name: Test PostgreSQL run/span storage
+        env:
+          PETALTRACE_TEST_POSTGRES_DSN: postgres://petaltrace:petaltrace@localhost:5432/petaltrace_test?sslmode=disable
+        run: go test ./store -run '^TestPostgresStoreRunSpanLifecycle$' -count=1
+
   test:
     runs-on: ${{ matrix.os }}
     strategy:

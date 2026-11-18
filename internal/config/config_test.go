@@ -161,6 +161,23 @@ func TestLoadFromEnv(t *testing.T) {
 	}
 }
 
+func TestLoadPostgresDSNFromEnv(t *testing.T) {
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "petaltrace.yaml")
+	if err := os.WriteFile(cfgPath, []byte("storage:\n  driver: postgres\n"), 0600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	t.Setenv("PETALTRACE_STORAGE_POSTGRES_DSN", "postgres://petaltrace@localhost:5432/petaltrace?sslmode=disable")
+
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.Storage.Postgres.DSN != "postgres://petaltrace@localhost:5432/petaltrace?sslmode=disable" {
+		t.Errorf("Storage.Postgres.DSN = %q, want configured environment value", cfg.Storage.Postgres.DSN)
+	}
+}
+
 func TestValidation(t *testing.T) {
 	tests := []struct {
 		name    string

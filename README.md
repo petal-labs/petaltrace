@@ -157,6 +157,7 @@ pricing:
 ```
 
 Environment variables with `PETALTRACE_` prefix override config file values.
+PostgreSQL can be selected with `storage.driver: postgres` and a DSN. See [Configuration](docs/configuration.md) for setup details and current backend support.
 
 ## Development
 
