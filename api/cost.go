@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"sort"
 	"strconv"
@@ -8,6 +9,39 @@ import (
 
 	"github.com/petal-labs/petaltrace/store"
 )
+
+// costRunsPageSize is the number of runs requested per ListRuns page when
+// building cost reports. Store backends clamp it to their own maximum, so it
+// only needs to stay within the shared 1,000-row cap. It is a variable so
+// tests can exercise multi-page traversal with small pages.
+var costRunsPageSize = 1000
+
+// listAllCostRuns pages through every run matching opts so cost reports
+// aggregate all matching runs, not just the first page. Store backends cap a
+// single ListRuns call (SQLite and PostgreSQL both clamp at 1,000 and fall
+// back to a default of 50 for oversized limits), so callers must follow the
+// returned cursor. Runs are sorted by id so pagination is coherent with the
+// store's id-based cursor (id < cursor): every run appears on exactly one
+// page regardless of how started_at interleaves with id order.
+func listAllCostRuns(ctx context.Context, st store.TraceStore, opts store.ListRunsOptions) ([]store.Run, error) {
+	var all []store.Run
+	opts.Limit = costRunsPageSize
+	opts.SortBy = "id"
+	cursor := ""
+	for {
+		opts.Cursor = cursor
+		runs, nextCursor, err := st.ListRuns(ctx, opts)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, runs...)
+		if nextCursor == "" || nextCursor == cursor {
+			break
+		}
+		cursor = nextCursor
+	}
+	return all, nil
+}
 
 // handleCostSummary handles GET /api/cost/summary
 func (s *Server) handleCostSummary(w http.ResponseWriter, r *http.Request) {
@@ -43,13 +77,12 @@ func (s *Server) handleCostSummary(w http.ResponseWriter, r *http.Request) {
 	// Get runs in time window
 	opts := store.ListRunsOptions{
 		Since: &since,
-		Limit: 10000,
 	}
 	if !until.IsZero() {
 		opts.Until = &until
 	}
 
-	runs, _, err := s.store.ListRuns(ctx, opts)
+	runs, err := listAllCostRuns(ctx, s.store, opts)
 	if err != nil {
 		s.logger.Error("failed to list runs", "error", err)
 		s.writeError(w, http.StatusInternalServerError, "failed to list runs")
@@ -303,10 +336,9 @@ func (s *Server) handleCostTimeseries(w http.ResponseWriter, r *http.Request) {
 	opts := store.ListRunsOptions{
 		Since: &since,
 		Until: &until,
-		Limit: 10000,
 	}
 
-	runs, _, err := s.store.ListRuns(ctx, opts)
+	runs, err := listAllCostRuns(ctx, s.store, opts)
 	if err != nil {
 		s.logger.Error("failed to list runs", "error", err)
 		s.writeError(w, http.StatusInternalServerError, "failed to list runs")

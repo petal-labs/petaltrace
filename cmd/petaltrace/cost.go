@@ -52,6 +52,12 @@ var (
 	costGroupBy string
 	costJSON    bool
 	costByNode  bool
+
+	// costRunsPageSize is the number of runs requested per ListRuns page when
+	// building cost reports. Store backends clamp it to their own maximum, so
+	// it only needs to stay within the shared 1,000-row cap. It is a variable
+	// so tests can exercise multi-page traversal with small pages.
+	costRunsPageSize = 1000
 )
 
 func init() {
@@ -85,13 +91,34 @@ func runCostSummary(cmd *cobra.Command, args []string) error {
 	}
 	since := time.Now().Add(-d)
 
-	// Fetch runs within time window
-	opts := store.ListRunsOptions{
-		Since: &since,
-		Limit: 10000, // Get all runs in window
-	}
+	// Fetch runs within time window, traversing every result page until the
+	// store reports no further cursor. ListRuns caps a single page (SQLite
+	// and PostgreSQL both clamp at 1,000 and fall back to their default of
+	// 50 for oversized limits), so a single call would only see part of the
+	// window. Runs are sorted by id so pagination is coherent with the
+	// store's id-based cursor (id < cursor).
+	var runs []store.Run
+	cursor := ""
+	for {
+		opts := store.ListRunsOptions{
+			Since:  &since,
+			Limit:  costRunsPageSize,
+			Cursor: cursor,
+			SortBy: "id",
+		}
 
-	runs, _, err := traceStore.ListRuns(ctx, opts)
+		page, nextCursor, err := traceStore.ListRuns(ctx, opts)
+		if err != nil {
+			return fmt.Errorf("listing runs: %w", err)
+		}
+
+		runs = append(runs, page...)
+
+		if nextCursor == "" || nextCursor == cursor {
+			break
+		}
+		cursor = nextCursor
+	}
 	if err != nil {
 		return fmt.Errorf("listing runs: %w", err)
 	}
