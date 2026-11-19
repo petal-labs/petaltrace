@@ -18,6 +18,7 @@ import (
 type LiveReplayer struct {
 	store          store.TraceStore
 	petalflowURL   string
+	petalFlowToken string
 	httpClient     *http.Client
 	requestTimeout time.Duration
 }
@@ -26,6 +27,7 @@ type LiveReplayer struct {
 type LiveReplayerConfig struct {
 	Store          store.TraceStore
 	PetalFlowURL   string        // URL to PetalFlow daemon API
+	PetalFlowToken string        // Optional bearer token for PetalFlow daemon API
 	RequestTimeout time.Duration // HTTP request timeout
 }
 
@@ -41,6 +43,7 @@ func NewLiveReplayer(cfg LiveReplayerConfig) *LiveReplayer {
 	return &LiveReplayer{
 		store:          cfg.Store,
 		petalflowURL:   cfg.PetalFlowURL,
+		petalFlowToken: cfg.PetalFlowToken,
 		requestTimeout: cfg.RequestTimeout,
 		httpClient: &http.Client{
 			Timeout: cfg.RequestTimeout,
@@ -156,6 +159,9 @@ func (r *LiveReplayer) executeViaAPI(ctx context.Context, req ExecuteRequest) (*
 		return nil, fmt.Errorf("creating request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+	if r.petalFlowToken != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+r.petalFlowToken)
+	}
 
 	resp, err := r.httpClient.Do(httpReq)
 	if err != nil {

@@ -19,16 +19,18 @@ import (
 
 // Server is the HTTP API server for PetalTrace
 type Server struct {
-	store        store.TraceStore
-	pricingTable *pricing.PricingTable
-	logger       *slog.Logger
-	httpServer   *http.Server
-	listener     net.Listener
-	serveDone    chan struct{}
-	serverMu     sync.Mutex
-	addr         string
-	replayMu     sync.Mutex
-	replayEngine *replay.Engine
+	store          store.TraceStore
+	petalFlowURL   string
+	petalFlowToken string
+	pricingTable   *pricing.PricingTable
+	logger         *slog.Logger
+	httpServer     *http.Server
+	listener       net.Listener
+	serveDone      chan struct{}
+	serverMu       sync.Mutex
+	addr           string
+	replayMu       sync.Mutex
+	replayEngine   *replay.Engine
 
 	// SSE subscribers
 	liveSubscribers map[chan *SSEEvent]struct{}
@@ -36,10 +38,12 @@ type Server struct {
 
 // ServerConfig holds configuration for the API server
 type ServerConfig struct {
-	Store        store.TraceStore
-	PricingTable *pricing.PricingTable
-	Logger       *slog.Logger
-	Addr         string
+	Store          store.TraceStore
+	PricingTable   *pricing.PricingTable
+	Logger         *slog.Logger
+	Addr           string
+	PetalFlowURL   string
+	PetalFlowToken string
 }
 
 // NewServer creates a new API server
@@ -53,6 +57,8 @@ func NewServer(cfg ServerConfig) *Server {
 
 	s := &Server{
 		store:           cfg.Store,
+		petalFlowURL:    cfg.PetalFlowURL,
+		petalFlowToken:  cfg.PetalFlowToken,
 		pricingTable:    cfg.PricingTable,
 		logger:          cfg.Logger,
 		addr:            cfg.Addr,

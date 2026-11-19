@@ -18,6 +18,7 @@ import (
 type HybridReplayer struct {
 	store          store.TraceStore
 	petalflowURL   string
+	petalFlowToken string
 	httpClient     *http.Client
 	requestTimeout time.Duration
 }
@@ -26,6 +27,7 @@ type HybridReplayer struct {
 type HybridReplayerConfig struct {
 	Store          store.TraceStore
 	PetalFlowURL   string
+	PetalFlowToken string
 	RequestTimeout time.Duration
 }
 
@@ -41,6 +43,7 @@ func NewHybridReplayer(cfg HybridReplayerConfig) *HybridReplayer {
 	return &HybridReplayer{
 		store:          cfg.Store,
 		petalflowURL:   cfg.PetalFlowURL,
+		petalFlowToken: cfg.PetalFlowToken,
 		requestTimeout: cfg.RequestTimeout,
 		httpClient: &http.Client{
 			Timeout: cfg.RequestTimeout,
@@ -165,6 +168,9 @@ func (r *HybridReplayer) executeHybrid(ctx context.Context, req HybridExecuteReq
 		return nil, fmt.Errorf("creating request: %w", err)
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
+	if r.petalFlowToken != "" {
+		httpReq.Header.Set("Authorization", "Bearer "+r.petalFlowToken)
+	}
 
 	resp, err := r.httpClient.Do(httpReq)
 	if err != nil {
@@ -236,10 +242,14 @@ func ExtractToolMocks(toolSpans []*store.Span) map[string]json.RawMessage {
 			continue
 		}
 
-		// Use tool use ID or span ID as key
+		// PetalFlow v1 hybrid replay resolves captured results by workflow
+		// tool-node ID. Fall back to the span ID for older traces that lack
+		// node metadata.
 		key := span.ID
-		if span.Tool.ToolUseID != nil && *span.Tool.ToolUseID != "" {
-			key = *span.Tool.ToolUseID
+		if span.Node != nil && span.Node.NodeID != "" {
+			key = span.Node.NodeID
+		} else if nodeID, ok := span.Attributes["petalflow.node_id"].(string); ok && nodeID != "" {
+			key = nodeID
 		}
 
 		mocks[key] = span.Tool.Outputs

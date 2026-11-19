@@ -106,12 +106,12 @@ func (c *Correlator) processSpan(ctx context.Context, in *IngestedSpan) (*Correl
 // extractRunID gets the run ID from span attributes or falls back to trace ID.
 func (c *Correlator) extractRunID(in *IngestedSpan) string {
 	// Check for explicit run ID
-	if runID, ok := getStringAttr(in.Attributes, "petalflow.run.id"); ok && runID != "" {
+	if runID, ok := getStringAttrAny(in.Attributes, "petalflow.run.id", "petalflow.run_id"); ok && runID != "" {
 		return runID
 	}
 
 	// Check resource attributes
-	if runID, ok := getStringAttr(in.Resource, "petalflow.run.id"); ok && runID != "" {
+	if runID, ok := getStringAttrAny(in.Resource, "petalflow.run.id", "petalflow.run_id"); ok && runID != "" {
 		return runID
 	}
 
@@ -153,7 +153,11 @@ func (c *Correlator) getOrCreateRun(ctx context.Context, runID string, in *Inges
 		// Update root info if this is the root span
 		if isRoot && !state.rootFound {
 			state.rootFound = true
+			c.updateRunMetadataFromSpan(state.run, in)
 			c.updateRunFromRoot(state.run, in)
+			if err := c.store.UpdateRun(ctx, state.run); err != nil {
+				return nil, err
+			}
 		}
 
 		return state.run, nil
@@ -162,11 +166,18 @@ func (c *Correlator) getOrCreateRun(ctx context.Context, runID string, in *Inges
 	// Check if run exists in store
 	existingRun, err := c.store.GetRun(ctx, runID)
 	if err == nil && existingRun != nil {
+		if isRoot {
+			c.updateRunMetadataFromSpan(existingRun, in)
+			c.updateRunFromRoot(existingRun, in)
+			if err := c.store.UpdateRun(ctx, existingRun); err != nil {
+				return nil, err
+			}
+		}
 		// Cache it
 		c.activeRuns[runID] = &runState{
 			run:       existingRun,
 			lastSeen:  time.Now(),
-			rootFound: true,
+			rootFound: isRoot,
 		}
 		return existingRun, nil
 	}
@@ -209,18 +220,31 @@ func (c *Correlator) createRun(runID string, in *IngestedSpan, isRoot bool) *sto
 		},
 	}
 
-	// Extract workflow info from attributes
-	if wfID, ok := getStringAttr(in.Attributes, "petalflow.workflow.id"); ok {
+	c.updateRunMetadataFromSpan(run, in)
+
+	// If this is the root span, capture snapshots
+	if isRoot {
+		c.updateRunFromRoot(run, in)
+	}
+
+	return run
+}
+
+func (c *Correlator) updateRunMetadataFromSpan(run *store.Run, in *IngestedSpan) {
+	// Extract workflow info from attributes.
+	if wfID, ok := getStringAttrAny(in.Attributes, "petalflow.workflow.id", "petalflow.workflow_id"); ok {
 		run.WorkflowID = wfID
 	}
 	if wfName, ok := getStringAttr(in.Attributes, "petalflow.workflow.name"); ok {
+		run.WorkflowName = wfName
+	} else if wfName, ok := getStringAttr(in.Attributes, "petalflow.graph"); ok {
 		run.WorkflowName = wfName
 	} else if wfName, ok := getStringAttr(in.Resource, "service.name"); ok {
 		run.WorkflowName = wfName
 	} else {
 		run.WorkflowName = "unknown"
 	}
-	if wfVersion, ok := getStringAttr(in.Attributes, "petalflow.workflow.version"); ok {
+	if wfVersion, ok := getStringAttrAny(in.Attributes, "petalflow.workflow.version", "petalflow.workflow_version"); ok {
 		run.WorkflowVersion = wfVersion
 	}
 
@@ -230,7 +254,7 @@ func (c *Correlator) createRun(runID string, in *IngestedSpan, isRoot bool) *sto
 	}
 
 	// Extract trigger source
-	if ts, ok := getStringAttr(in.Attributes, "petalflow.trigger_source"); ok {
+	if ts, ok := getStringAttrAny(in.Attributes, "petalflow.trigger_source", "petalflow.trigger"); ok {
 		run.TriggerSource = ts
 	}
 
@@ -241,37 +265,57 @@ func (c *Correlator) createRun(runID string, in *IngestedSpan, isRoot bool) *sto
 
 	// Extract tags
 	for k, v := range in.Attributes {
-		if len(k) > 4 && k[:4] == "tag." {
+		tagKey := ""
+		switch {
+		case len(k) > len("tag.") && k[:len("tag.")] == "tag.":
+			tagKey = k[len("tag."):]
+		case len(k) > len("petalflow.tag.") && k[:len("petalflow.tag.")] == "petalflow.tag.":
+			tagKey = k[len("petalflow.tag."):]
+		}
+		if tagKey != "" {
 			if s, ok := v.(string); ok {
-				run.Tags[k[4:]] = s
+				run.Tags[tagKey] = s
 			}
 		}
 	}
 
-	// If this is the root span, capture snapshots
-	if isRoot {
-		c.updateRunFromRoot(run, in)
-	}
-
-	return run
 }
 
 // updateRunFromRoot updates run with information from the root span.
 func (c *Correlator) updateRunFromRoot(run *store.Run, in *IngestedSpan) {
-	// Capture graph snapshot
-	if graph, ok := in.Attributes["petalflow.graph"]; ok {
-		run.GraphSnapshot, _ = json.Marshal(graph)
+	// Capture snapshots. PetalFlow v1 uses a graph name in petalflow.graph
+	// and emits the replayable definition separately.
+	if graph, ok := firstAttr(in.Attributes, "petalflow.graph_definition", "petalflow.graph_snapshot", "petalflow.graph"); ok {
+		run.GraphSnapshot = snapshotJSON(graph)
 	}
 
-	// Capture input snapshot
-	if input, ok := in.Attributes["petalflow.input"]; ok {
-		run.InputSnapshot, _ = json.Marshal(input)
+	if input, ok := firstAttr(in.Attributes, "petalflow.input_snapshot", "petalflow.input", "petalflow.inputs"); ok {
+		run.InputSnapshot = snapshotJSON(input)
 	}
 
-	// Capture config snapshot
-	if config, ok := in.Attributes["petalflow.config"]; ok {
-		run.ConfigSnapshot, _ = json.Marshal(config)
+	if config, ok := firstAttr(in.Attributes, "petalflow.config_snapshot", "petalflow.config"); ok {
+		run.ConfigSnapshot = snapshotJSON(config)
 	}
+}
+
+func firstAttr(attrs map[string]any, keys ...string) (any, bool) {
+	for _, key := range keys {
+		if value, ok := attrs[key]; ok {
+			return value, true
+		}
+	}
+	return nil, false
+}
+
+func snapshotJSON(value any) json.RawMessage {
+	if data, ok := value.(string); ok && json.Valid([]byte(data)) {
+		return json.RawMessage(data)
+	}
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return nil
+	}
+	return encoded
 }
 
 // UpdateRunStatus updates the status of a run based on span status.

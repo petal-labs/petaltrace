@@ -3,13 +3,16 @@ package petaltrace
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/petal-labs/petaltrace/diff"
+	"github.com/petal-labs/petaltrace/internal/config"
 	"github.com/petal-labs/petaltrace/replay"
+	"github.com/petal-labs/petaltrace/store"
 )
 
 var replayCmd = &cobra.Command{
@@ -48,7 +51,7 @@ func init() {
 	replayCmd.Flags().BoolVar(&replaySync, "sync", true, "Wait for replay to complete")
 	replayCmd.Flags().StringSliceVar(&replayTags, "tag", nil, "Add tags (format: key=value)")
 	replayCmd.Flags().BoolVar(&replayJSON, "json", false, "Output as JSON")
-	replayCmd.Flags().StringVar(&replayPetalFlowURL, "petalflow-url", "http://localhost:8080", "PetalFlow daemon URL")
+	replayCmd.Flags().StringVar(&replayPetalFlowURL, "petalflow-url", "", "PetalFlow daemon URL (overrides petalflow.url)")
 }
 
 func runReplay(cmd *cobra.Command, args []string) error {
@@ -92,10 +95,10 @@ func runReplay(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create replay engine
-	engine := replay.NewEngine(replay.EngineConfig{
-		Store:        traceStore,
-		PetalFlowURL: replayPetalFlowURL,
-	})
+	engine, err := newReplayEngine(traceStore)
+	if err != nil {
+		return fmt.Errorf("loading PetalFlow replay configuration: %w", err)
+	}
 
 	// Execute replay
 	var result *replay.Replay
@@ -189,10 +192,10 @@ func runReplayStatus(cmd *cobra.Command, args []string) error {
 	}
 	defer traceStore.Close()
 
-	engine := replay.NewEngine(replay.EngineConfig{
-		Store:        traceStore,
-		PetalFlowURL: replayPetalFlowURL,
-	})
+	engine, err := newReplayEngine(traceStore)
+	if err != nil {
+		return fmt.Errorf("loading PetalFlow replay configuration: %w", err)
+	}
 
 	result, err := engine.RefreshReplayStatus(cmd.Context(), replayID)
 	if err != nil {
@@ -228,10 +231,10 @@ func runReplayDiffCmd(cmd *cobra.Command, args []string) error {
 	}
 	defer traceStore.Close()
 
-	replayEngine := replay.NewEngine(replay.EngineConfig{
-		Store:        traceStore,
-		PetalFlowURL: replayPetalFlowURL,
-	})
+	replayEngine, err := newReplayEngine(traceStore)
+	if err != nil {
+		return fmt.Errorf("loading PetalFlow replay configuration: %w", err)
+	}
 
 	r, err := replayEngine.LoadReplay(cmd.Context(), replayID)
 	if err != nil {
@@ -267,4 +270,20 @@ func runReplayDiffCmd(cmd *cobra.Command, args []string) error {
 	fmt.Println(formatDiffSummary(runDiff))
 
 	return nil
+}
+
+func newReplayEngine(traceStore store.TraceStore) (*replay.Engine, error) {
+	cfg, err := config.Load(cfgFile)
+	if err != nil {
+		return nil, fmt.Errorf("loading config: %w", err)
+	}
+	petalFlowURL := replayPetalFlowURL
+	if petalFlowURL == "" {
+		petalFlowURL = cfg.PetalFlow.URL
+	}
+	return replay.NewEngine(replay.EngineConfig{
+		Store:          traceStore,
+		PetalFlowURL:   petalFlowURL,
+		PetalFlowToken: os.Getenv("PETALFLOW_API_TOKEN"),
+	}), nil
 }

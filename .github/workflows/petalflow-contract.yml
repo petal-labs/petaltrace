@@ -1,0 +1,45 @@
+name: PetalFlow Runtime Contract
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  petalflow-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout PetalTrace
+        uses: actions/checkout@v4
+
+      - name: Checkout PetalFlow v1.2.0 candidate
+        uses: actions/checkout@v4
+        with:
+          repository: petal-labs/petalflow
+          ref: cc97d8cdbce8064ee3236ede16186ac15db7f8b2
+          path: petalflow
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+          cache: true
+          cache-dependency-path: |
+            go.sum
+            petalflow/go.sum
+
+      - name: Build PetalFlow candidate
+        working-directory: petalflow
+        run: go build -ldflags "-X main.version=v1.2.0-rc.0" -o "$RUNNER_TEMP/petalflow" ./cmd/petalflow
+
+      - name: Verify replay and OTLP runtime contract
+        env:
+          PETALFLOW_TEST_BINARY: ${{ runner.temp }}/petalflow
+          PETALFLOW_TEST_VERSION: v1.2.0-rc.0
+        run: go test ./integration -run '^TestPetalFlowV120RuntimeContract$' -count=1 -timeout=90s
