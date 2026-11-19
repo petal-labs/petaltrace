@@ -3,9 +3,12 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/petal-labs/petaltrace/internal/netutil"
@@ -19,6 +22,9 @@ type Server struct {
 	pricingTable *pricing.PricingTable
 	logger       *slog.Logger
 	httpServer   *http.Server
+	listener     net.Listener
+	serveDone    chan struct{}
+	serverMu     sync.Mutex
 	addr         string
 
 	// SSE subscribers
@@ -59,19 +65,47 @@ func (s *Server) Start(ctx context.Context) error {
 		return fmt.Errorf("API server address must use a loopback host because network authentication is not implemented")
 	}
 
-	s.httpServer = &http.Server{
+	listener, err := net.Listen("tcp", s.addr)
+	if err != nil {
+		return fmt.Errorf("listening for API: %w", err)
+	}
+
+	server := &http.Server{
 		Addr:         s.addr,
 		Handler:      s.handler(),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
+	serveDone := make(chan struct{})
+
+	s.serverMu.Lock()
+	if s.httpServer != nil {
+		s.serverMu.Unlock()
+		_ = listener.Close()
+		return errors.New("API server already started")
+	}
+	s.httpServer = server
+	s.listener = listener
+	s.serveDone = serveDone
+	s.addr = listener.Addr().String()
+	s.serverMu.Unlock()
 
 	s.logger.Info("starting API server", "addr", s.addr)
 
 	go func() {
-		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		defer close(serveDone)
+		if err := server.Serve(listener); err != nil &&
+			!errors.Is(err, http.ErrServerClosed) &&
+			!errors.Is(err, net.ErrClosed) {
 			s.logger.Error("API server error", "error", err)
+		}
+	}()
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = s.Stop()
+		case <-serveDone:
 		}
 	}()
 
@@ -88,18 +122,41 @@ func (s *Server) handler() http.Handler {
 
 // Stop gracefully stops the HTTP server
 func (s *Server) Stop() error {
-	if s.httpServer == nil {
+	s.serverMu.Lock()
+	server, listener, serveDone := s.httpServer, s.listener, s.serveDone
+	s.httpServer = nil
+	s.listener = nil
+	s.serveDone = nil
+	s.serverMu.Unlock()
+	if server == nil {
 		return nil
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	return s.httpServer.Shutdown(ctx)
+	shutdownErr := server.Shutdown(ctx)
+	if shutdownErr != nil {
+		_ = server.Close()
+	}
+	if listener != nil {
+		if err := listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) && shutdownErr == nil {
+			shutdownErr = fmt.Errorf("closing API listener: %w", err)
+		}
+	}
+	if serveDone != nil {
+		<-serveDone
+	}
+	if shutdownErr != nil {
+		return fmt.Errorf("shutting down API server: %w", shutdownErr)
+	}
+	return nil
 }
 
 // Addr returns the server address
 func (s *Server) Addr() string {
+	s.serverMu.Lock()
+	defer s.serverMu.Unlock()
 	return s.addr
 }
 

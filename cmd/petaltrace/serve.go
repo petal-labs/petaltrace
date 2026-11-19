@@ -106,6 +106,11 @@ func runServe(cmd *cobra.Command, args []string) error {
 	if err := coll.Start(ctx); err != nil {
 		return fmt.Errorf("starting collector: %w", err)
 	}
+	defer func() {
+		if err := coll.Stop(); err != nil {
+			logger.Error("collector stop error", "error", err)
+		}
+	}()
 
 	logger.Info("collector started",
 		"otlp_http", coll.HTTPAddr(),

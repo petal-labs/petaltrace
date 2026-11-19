@@ -3,6 +3,7 @@ package collector
 import (
 	"bytes"
 	"context"
+	"net"
 	"net/http"
 	"testing"
 	"time"
@@ -82,6 +83,63 @@ func TestNewCollectorRejectsNonLoopbackAddresses(t *testing.T) {
 	if err == nil {
 		t.Fatal("NewCollector() error = nil, want non-loopback HTTP address error")
 	}
+}
+
+func TestCollector_StartReturnsHTTPBindError(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("reserve HTTP listener: %v", err)
+	}
+	defer listener.Close()
+
+	collector, err := NewCollector(CollectorConfig{
+		Store:    setupTestStore(t),
+		HTTPAddr: listener.Addr().String(),
+		GRPCAddr: "127.0.0.1:0",
+	})
+	if err != nil {
+		t.Fatalf("NewCollector() error = %v", err)
+	}
+	if err := collector.Start(context.Background()); err == nil {
+		_ = collector.Stop()
+		t.Fatal("Start() error = nil, want HTTP listener bind error")
+	}
+}
+
+func TestCollector_StartReturnsGRPCBindError(t *testing.T) {
+	httpProbe, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("reserve HTTP probe listener: %v", err)
+	}
+	httpAddr := httpProbe.Addr().String()
+	if err := httpProbe.Close(); err != nil {
+		t.Fatalf("close HTTP probe listener: %v", err)
+	}
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("reserve gRPC listener: %v", err)
+	}
+	defer listener.Close()
+
+	collector, err := NewCollector(CollectorConfig{
+		Store:    setupTestStore(t),
+		HTTPAddr: httpAddr,
+		GRPCAddr: listener.Addr().String(),
+	})
+	if err != nil {
+		t.Fatalf("NewCollector() error = %v", err)
+	}
+	if err := collector.Start(context.Background()); err == nil {
+		_ = collector.Stop()
+		t.Fatal("Start() error = nil, want gRPC listener bind error")
+	}
+
+	retryListener, err := net.Listen("tcp", httpAddr)
+	if err != nil {
+		t.Fatalf("HTTP listener remained bound after collector startup failed: %v", err)
+	}
+	_ = retryListener.Close()
 }
 
 func TestCollector_ReceiveSpansHTTP(t *testing.T) {
