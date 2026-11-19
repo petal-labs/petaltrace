@@ -32,6 +32,12 @@ var (
 	gcDryRun         bool
 	gcIncludeStarred bool
 	gcVerbose        bool
+
+	// gcPageSize is the number of runs requested per ListRuns page during
+	// garbage collection. Store backends clamp it to their own maximum, so
+	// this only needs to stay within the shared 1,000-row cap. It is a
+	// variable so tests can exercise multi-page traversal with small runs.
+	gcPageSize = 1000
 )
 
 func init() {
@@ -92,32 +98,47 @@ func runGC(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println()
 
-	// Find runs to delete
-	opts := store.ListRunsOptions{
-		Limit: 10000, // Get all runs
-	}
-
-	runs, _, err := traceStore.ListRuns(ctx, opts)
-	if err != nil {
-		return fmt.Errorf("listing runs: %w", err)
-	}
-
+	// Find runs to delete, traversing every result page until the store
+	// reports no further cursor. ListRuns caps a single page (SQLite and
+	// PostgreSQL both clamp at 1,000 and fall back to their default of 50
+	// for oversized limits), so a single call would only ever see the
+	// newest page of runs.
 	var toDelete []store.Run
-	for _, run := range runs {
-		// Check if run is old enough
-		if !run.StartedAt.Before(cutoffTime) {
-			continue
+	cursor := ""
+	for {
+		// Sort by id so pagination is coherent with the store's id-based
+		// cursor (id < cursor): every run appears on exactly one page,
+		// regardless of how started_at interleaves with id order.
+		runs, nextCursor, err := traceStore.ListRuns(ctx, store.ListRunsOptions{
+			Limit:  gcPageSize,
+			Cursor: cursor,
+			SortBy: "id",
+		})
+		if err != nil {
+			return fmt.Errorf("listing runs: %w", err)
 		}
 
-		// Check starred status
-		if run.Starred && !gcIncludeStarred {
-			if gcVerbose {
-				fmt.Printf("  Skipping starred run: %s\n", run.ID)
+		for _, run := range runs {
+			// Check if run is old enough
+			if !run.StartedAt.Before(cutoffTime) {
+				continue
 			}
-			continue
+
+			// Check starred status
+			if run.Starred && !gcIncludeStarred {
+				if gcVerbose {
+					fmt.Printf("  Skipping starred run: %s\n", run.ID)
+				}
+				continue
+			}
+
+			toDelete = append(toDelete, run)
 		}
 
-		toDelete = append(toDelete, run)
+		if nextCursor == "" || nextCursor == cursor {
+			break
+		}
+		cursor = nextCursor
 	}
 
 	if len(toDelete) == 0 {
