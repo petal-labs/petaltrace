@@ -58,21 +58,35 @@ func NewOTLPHTTPReceiver(cfg OTLPHTTPConfig) *OTLPHTTPReceiver {
 
 // Start begins accepting HTTP connections.
 func (r *OTLPHTTPReceiver) Start(ctx context.Context) error {
+	listener, err := r.listen()
+	if err != nil {
+		return err
+	}
+	if err := r.prepare(listener); err != nil {
+		_ = listener.Close()
+		return err
+	}
+	return r.serve(ctx)
+}
+
+func (r *OTLPHTTPReceiver) listen() (net.Listener, error) {
 	if !netutil.IsLoopbackAddr(r.addr) {
-		return fmt.Errorf("OTLP HTTP address must use a loopback host because network authentication is not implemented")
+		return nil, fmt.Errorf("OTLP HTTP address must use a loopback host because network authentication is not implemented")
 	}
 
-	r.mu.Lock()
-	if r.running {
-		r.mu.Unlock()
-		return errors.New("receiver already running")
+	listener, err := net.Listen("tcp", r.addr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to listen: %w", err)
 	}
+	return listener, nil
+}
 
+func (r *OTLPHTTPReceiver) prepare(listener net.Listener) error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /v1/traces", r.handleTraces)
 	mux.HandleFunc("GET /health", r.handleHealth)
 
-	r.server = &http.Server{
+	server := &http.Server{
 		Addr:         r.addr,
 		Handler:      mux,
 		ReadTimeout:  30 * time.Second,
@@ -80,48 +94,79 @@ func (r *OTLPHTTPReceiver) Start(ctx context.Context) error {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	ln, err := net.Listen("tcp", r.addr)
-	if err != nil {
+	r.mu.Lock()
+	if r.running {
 		r.mu.Unlock()
-		return fmt.Errorf("failed to listen: %w", err)
+		return errors.New("receiver already running")
 	}
-	r.listener = ln
+	r.listener = listener
+	r.server = server
 	r.running = true
 	r.mu.Unlock()
 
-	r.logger.Info("OTLP HTTP receiver started", "addr", ln.Addr().String())
+	r.logger.Info("OTLP HTTP receiver started", "addr", listener.Addr().String())
+	return nil
+}
 
+func (r *OTLPHTTPReceiver) serve(ctx context.Context) error {
+	r.mu.Lock()
+	if !r.running || r.server == nil || r.listener == nil {
+		r.mu.Unlock()
+		return nil
+	}
+	server, listener := r.server, r.listener
+	r.mu.Unlock()
+
+	done := make(chan struct{})
 	go func() {
-		<-ctx.Done()
-		r.Stop()
+		select {
+		case <-ctx.Done():
+			_ = r.Stop()
+		case <-done:
+		}
 	}()
+	defer close(done)
 
-	if err := r.server.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	err := server.Serve(listener)
+	r.mu.Lock()
+	if r.server == server {
+		r.running = false
+	}
+	r.mu.Unlock()
+
+	if err != nil && !errors.Is(err, http.ErrServerClosed) && !errors.Is(err, net.ErrClosed) {
 		return fmt.Errorf("server error: %w", err)
 	}
-
 	return nil
 }
 
 // Stop gracefully shuts down the receiver.
 func (r *OTLPHTTPReceiver) Stop() error {
 	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if !r.running {
+	if r.server == nil || r.listener == nil {
+		r.running = false
+		r.mu.Unlock()
 		return nil
 	}
-
+	server, listener := r.server, r.listener
 	r.running = false
+	r.server = nil
+	r.listener = nil
+	r.mu.Unlock()
+
 	r.logger.Info("stopping OTLP HTTP receiver")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	if err := r.server.Shutdown(ctx); err != nil {
+	if err := server.Shutdown(ctx); err != nil {
+		_ = server.Close()
+		_ = listener.Close()
 		return fmt.Errorf("shutdown error: %w", err)
 	}
-
+	if err := listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+		return fmt.Errorf("closing listener: %w", err)
+	}
 	return nil
 }
 

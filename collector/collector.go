@@ -142,32 +142,54 @@ func (c *Collector) Start(ctx context.Context) error {
 	}
 
 	c.ctx, c.cancel = context.WithCancel(ctx)
+	runCtx := c.ctx
 	c.running = true
 	c.mu.Unlock()
 
-	// Start writer
+	httpListener, err := c.httpReceiver.listen()
+	if err != nil {
+		c.failStart()
+		return fmt.Errorf("starting HTTP receiver: %w", err)
+	}
+
+	grpcListener, err := c.grpcReceiver.listen()
+	if err != nil {
+		_ = httpListener.Close()
+		c.failStart()
+		return fmt.Errorf("starting gRPC receiver: %w", err)
+	}
+
+	if err := c.httpReceiver.prepare(httpListener); err != nil {
+		_ = httpListener.Close()
+		_ = grpcListener.Close()
+		c.failStart()
+		return fmt.Errorf("preparing HTTP receiver: %w", err)
+	}
+	if err := c.grpcReceiver.prepare(grpcListener); err != nil {
+		_ = c.httpReceiver.Stop()
+		_ = grpcListener.Close()
+		c.failStart()
+		return fmt.Errorf("preparing gRPC receiver: %w", err)
+	}
+
+	// Both receivers have bound successfully before the collector reports started.
 	c.writer.Start()
 
-	// Start HTTP receiver
-	c.wg.Add(1)
+	c.wg.Add(3)
 	go func() {
 		defer c.wg.Done()
-		if err := c.httpReceiver.Start(c.ctx); err != nil {
+		if err := c.httpReceiver.serve(runCtx); err != nil {
 			c.logger.Error("HTTP receiver error", "error", err)
 		}
 	}()
-
-	// Start gRPC receiver
-	c.wg.Add(1)
 	go func() {
 		defer c.wg.Done()
-		if err := c.grpcReceiver.Start(c.ctx); err != nil {
+		if err := c.grpcReceiver.serve(runCtx); err != nil {
 			c.logger.Error("gRPC receiver error", "error", err)
 		}
 	}()
 
 	// Start inactive run cleanup
-	c.wg.Add(1)
 	go c.cleanupLoop()
 
 	c.logger.Info("collector started",
@@ -178,6 +200,18 @@ func (c *Collector) Start(ctx context.Context) error {
 	return nil
 }
 
+func (c *Collector) failStart() {
+	c.mu.Lock()
+	c.running = false
+	cancel := c.cancel
+	c.cancel = nil
+	c.ctx = nil
+	c.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+}
+
 // Stop gracefully shuts down the collector.
 func (c *Collector) Stop() error {
 	c.mu.Lock()
@@ -186,12 +220,15 @@ func (c *Collector) Stop() error {
 		return nil
 	}
 	c.running = false
+	cancel := c.cancel
 	c.mu.Unlock()
 
 	c.logger.Info("stopping collector")
 
 	// Cancel context to stop receivers
-	c.cancel()
+	if cancel != nil {
+		cancel()
+	}
 
 	// Stop receivers
 	c.httpReceiver.Stop()
@@ -199,6 +236,10 @@ func (c *Collector) Stop() error {
 
 	// Wait for background goroutines
 	c.wg.Wait()
+	c.mu.Lock()
+	c.ctx = nil
+	c.cancel = nil
+	c.mu.Unlock()
 
 	// Stop writer (flushes remaining spans)
 	if err := c.writer.Stop(); err != nil {

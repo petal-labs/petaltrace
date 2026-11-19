@@ -62,77 +62,120 @@ func NewOTLPGRPCReceiver(cfg OTLPGRPCConfig) *OTLPGRPCReceiver {
 
 // Start begins accepting gRPC connections.
 func (r *OTLPGRPCReceiver) Start(ctx context.Context) error {
-	if !netutil.IsLoopbackAddr(r.addr) {
-		return fmt.Errorf("OTLP gRPC address must use a loopback host because network authentication is not implemented")
+	listener, err := r.listen()
+	if err != nil {
+		return err
 	}
+	if err := r.prepare(listener); err != nil {
+		_ = listener.Close()
+		return err
+	}
+	return r.serve(ctx)
+}
+
+func (r *OTLPGRPCReceiver) listen() (net.Listener, error) {
+	if !netutil.IsLoopbackAddr(r.addr) {
+		return nil, fmt.Errorf("OTLP gRPC address must use a loopback host because network authentication is not implemented")
+	}
+
+	listener, err := net.Listen("tcp", r.addr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to listen: %w", err)
+	}
+	return listener, nil
+}
+
+func (r *OTLPGRPCReceiver) prepare(listener net.Listener) error {
+	server := grpc.NewServer(
+		grpc.MaxRecvMsgSize(64*1024*1024), // 64MB
+		grpc.MaxSendMsgSize(64*1024*1024),
+	)
+
+	collectorpb.RegisterTraceServiceServer(server, r)
+
+	// Register health service
+	healthServer := health.NewServer()
+	healthpb.RegisterHealthServer(server, healthServer)
+	healthServer.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
 
 	r.mu.Lock()
 	if r.running {
 		r.mu.Unlock()
 		return errors.New("receiver already running")
 	}
-
-	ln, err := net.Listen("tcp", r.addr)
-	if err != nil {
-		r.mu.Unlock()
-		return fmt.Errorf("failed to listen: %w", err)
-	}
-	r.listener = ln
-
-	r.server = grpc.NewServer(
-		grpc.MaxRecvMsgSize(64*1024*1024), // 64MB
-		grpc.MaxSendMsgSize(64*1024*1024),
-	)
-
-	collectorpb.RegisterTraceServiceServer(r.server, r)
-
-	// Register health service
-	healthServer := health.NewServer()
-	healthpb.RegisterHealthServer(r.server, healthServer)
-	healthServer.SetServingStatus("", healthpb.HealthCheckResponse_SERVING)
-
+	r.listener = listener
+	r.server = server
 	r.running = true
 	r.mu.Unlock()
 
-	r.logger.Info("OTLP gRPC receiver started", "addr", ln.Addr().String())
+	r.logger.Info("OTLP gRPC receiver started", "addr", listener.Addr().String())
+	return nil
+}
 
+func (r *OTLPGRPCReceiver) serve(ctx context.Context) error {
+	r.mu.Lock()
+	if !r.running || r.server == nil || r.listener == nil {
+		r.mu.Unlock()
+		return nil
+	}
+	server, listener := r.server, r.listener
+	r.mu.Unlock()
+
+	done := make(chan struct{})
 	go func() {
-		<-ctx.Done()
-		r.Stop()
+		select {
+		case <-ctx.Done():
+			_ = r.Stop()
+		case <-done:
+		}
 	}()
+	defer close(done)
 
-	if err := r.server.Serve(ln); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
+	err := server.Serve(listener)
+	r.mu.Lock()
+	if r.server == server {
+		r.running = false
+	}
+	r.mu.Unlock()
+
+	if err != nil && !errors.Is(err, grpc.ErrServerStopped) && !errors.Is(err, net.ErrClosed) {
 		return fmt.Errorf("server error: %w", err)
 	}
-
 	return nil
 }
 
 // Stop gracefully shuts down the receiver.
 func (r *OTLPGRPCReceiver) Stop() error {
 	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	if !r.running {
+	if r.server == nil || r.listener == nil {
+		r.running = false
+		r.mu.Unlock()
 		return nil
 	}
-
+	server, listener := r.server, r.listener
 	r.running = false
+	r.server = nil
+	r.listener = nil
+	r.mu.Unlock()
+
 	r.logger.Info("stopping OTLP gRPC receiver")
 
 	stopped := make(chan struct{})
 	go func() {
-		r.server.GracefulStop()
+		server.GracefulStop()
 		close(stopped)
 	}()
 
 	select {
 	case <-stopped:
-		return nil
 	case <-time.After(5 * time.Second):
-		r.server.Stop()
-		return nil
+		server.Stop()
 	}
+
+	if err := listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+		return fmt.Errorf("closing listener: %w", err)
+	}
+	return nil
 }
 
 // Addr returns the listener address.

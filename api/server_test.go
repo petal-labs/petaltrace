@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -165,6 +166,23 @@ func TestServer_StartRejectsNonLoopbackAddress(t *testing.T) {
 	if err := s.Start(context.Background()); err == nil {
 		_ = s.Stop()
 		t.Fatal("Start() error = nil, want non-loopback address error")
+	}
+}
+
+func TestServer_StartReturnsBindError(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("reserve listener: %v", err)
+	}
+	defer listener.Close()
+
+	s := NewServer(ServerConfig{
+		Store: newMockStore(),
+		Addr:  listener.Addr().String(),
+	})
+	if err := s.Start(context.Background()); err == nil {
+		_ = s.Stop()
+		t.Fatal("Start() error = nil, want listener bind error")
 	}
 }
 
