@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"sync"
 	"time"
 
 	"github.com/petal-labs/petaltrace/diff"
@@ -20,10 +19,6 @@ type Engine struct {
 	hybridReplayer *HybridReplayer
 	diffEngine     *diff.Engine
 	logger         *slog.Logger
-
-	// Track active replays
-	mu      sync.RWMutex
-	replays map[string]*Replay
 }
 
 // EngineConfig configures the replay engine
@@ -56,7 +51,6 @@ func NewEngine(cfg EngineConfig) *Engine {
 		}),
 		diffEngine: diff.NewEngine(cfg.Store),
 		logger:     cfg.Logger,
-		replays:    make(map[string]*Replay),
 	}
 }
 
@@ -98,6 +92,11 @@ func (e *Engine) Execute(ctx context.Context, req *ReplayRequest) (*Replay, erro
 		return nil, fmt.Errorf("unsupported replay mode: %s", req.Mode)
 	}
 
+	if replay != nil {
+		if persistErr := e.store.CreateReplay(ctx, replayToRecord(replay)); persistErr != nil {
+			return replay, fmt.Errorf("persisting replay: %w", persistErr)
+		}
+	}
 	if err != nil {
 		e.logger.Error("replay failed",
 			"source_run_id", req.SourceRunID,
@@ -106,11 +105,6 @@ func (e *Engine) Execute(ctx context.Context, req *ReplayRequest) (*Replay, erro
 		)
 		return replay, err
 	}
-
-	// Track replay
-	e.mu.Lock()
-	e.replays[replay.ID] = replay
-	e.mu.Unlock()
 
 	e.logger.Info("replay started",
 		"replay_id", replay.ID,
@@ -155,6 +149,10 @@ func (e *Engine) ExecuteSync(ctx context.Context, req *ReplayRequest) (*Replay, 
 		return replay, err
 	}
 
+	if err := e.UpdateReplay(ctx, replay); err != nil {
+		return replay, fmt.Errorf("persisting replay status: %w", err)
+	}
+
 	// Auto-diff if requested
 	if req.AutoDiff && replay.NewRunID != "" {
 		e.performAutoDiff(ctx, replay, req.SourceRunID)
@@ -186,13 +184,16 @@ func (e *Engine) performAutoDiff(ctx context.Context, replay *Replay, sourceRunI
 		return
 	}
 
-	// Update replay with diff ID
-	e.mu.Lock()
-	if r, ok := e.replays[replay.ID]; ok {
-		r.DiffID = runDiff.ID
-	}
+	// Update replay with diff ID.
 	replay.DiffID = runDiff.ID
-	e.mu.Unlock()
+	if err := e.UpdateReplay(ctx, replay); err != nil {
+		e.logger.Error("persisting replay diff ID failed",
+			"replay_id", replay.ID,
+			"diff_id", runDiff.ID,
+			"error", err,
+		)
+		return
+	}
 
 	e.logger.Info("auto-diff completed",
 		"replay_id", replay.ID,
@@ -202,46 +203,69 @@ func (e *Engine) performAutoDiff(ctx context.Context, replay *Replay, sourceRunI
 
 // GetReplay retrieves a replay by ID
 func (e *Engine) GetReplay(replayID string) (*Replay, bool) {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-	replay, ok := e.replays[replayID]
-	return replay, ok
+	replay, err := e.LoadReplay(context.Background(), replayID)
+	return replay, err == nil
 }
 
 // ListReplays returns all tracked replays
 func (e *Engine) ListReplays() []*Replay {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-
-	replays := make([]*Replay, 0, len(e.replays))
-	for _, r := range e.replays {
-		replays = append(replays, r)
+	replays, err := e.LoadReplays(context.Background(), "")
+	if err != nil {
+		return nil
 	}
 	return replays
 }
 
 // GetReplaysBySourceRun returns replays for a source run
 func (e *Engine) GetReplaysBySourceRun(sourceRunID string) []*Replay {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
-
-	var replays []*Replay
-	for _, r := range e.replays {
-		if r.SourceRunID == sourceRunID {
-			replays = append(replays, r)
-		}
+	replays, err := e.LoadReplays(context.Background(), sourceRunID)
+	if err != nil {
+		return nil
 	}
 	return replays
 }
 
+// LoadReplay retrieves a persisted replay by ID.
+func (e *Engine) LoadReplay(ctx context.Context, replayID string) (*Replay, error) {
+	record, err := e.store.GetReplay(ctx, replayID)
+	if err != nil {
+		return nil, fmt.Errorf("getting replay: %w", err)
+	}
+	if record == nil {
+		return nil, fmt.Errorf("replay not found: %s", replayID)
+	}
+	return replayFromRecord(record), nil
+}
+
+// LoadReplays returns persisted replays, optionally filtered by source run.
+func (e *Engine) LoadReplays(ctx context.Context, sourceRunID string) ([]*Replay, error) {
+	records, err := e.store.ListReplays(ctx, sourceRunID)
+	if err != nil {
+		return nil, fmt.Errorf("listing replays: %w", err)
+	}
+	replays := make([]*Replay, len(records))
+	for i := range records {
+		replays[i] = replayFromRecord(&records[i])
+	}
+	return replays, nil
+}
+
+// UpdateReplay persists a replay's current status and result identifiers.
+func (e *Engine) UpdateReplay(ctx context.Context, replay *Replay) error {
+	if replay == nil {
+		return fmt.Errorf("replay is required")
+	}
+	if err := e.store.UpdateReplay(ctx, replayToRecord(replay)); err != nil {
+		return fmt.Errorf("updating replay: %w", err)
+	}
+	return nil
+}
+
 // RefreshReplayStatus updates replay status from the store
 func (e *Engine) RefreshReplayStatus(ctx context.Context, replayID string) (*Replay, error) {
-	e.mu.Lock()
-	replay, ok := e.replays[replayID]
-	e.mu.Unlock()
-
-	if !ok {
-		return nil, fmt.Errorf("replay not found: %s", replayID)
+	replay, err := e.LoadReplay(ctx, replayID)
+	if err != nil {
+		return nil, err
 	}
 
 	if replay.NewRunID == "" || replay.Status == ReplayStatusCompleted || replay.Status == ReplayStatusFailed {
@@ -256,19 +280,60 @@ func (e *Engine) RefreshReplayStatus(ctx context.Context, replayID string) (*Rep
 		return replay, nil
 	}
 
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
+	updated := false
 	switch run.Status {
 	case store.RunStatusCompleted:
 		replay.Status = ReplayStatusCompleted
 		now := time.Now()
 		replay.CompletedAt = &now
+		updated = true
 	case store.RunStatusFailed:
 		replay.Status = ReplayStatusFailed
 		now := time.Now()
 		replay.CompletedAt = &now
+		updated = true
 	}
 
+	if updated {
+		if err := e.UpdateReplay(ctx, replay); err != nil {
+			return nil, fmt.Errorf("persisting replay status: %w", err)
+		}
+	}
 	return replay, nil
+}
+
+func replayToRecord(replay *Replay) *store.ReplayRecord {
+	record := &store.ReplayRecord{
+		ID:          replay.ID,
+		SourceRunID: replay.SourceRunID,
+		NewRunID:    replay.NewRunID,
+		DiffID:      replay.DiffID,
+		Mode:        string(replay.Mode),
+		Status:      string(replay.Status),
+		Error:       replay.Error,
+		StartedAt:   replay.StartedAt,
+	}
+	if replay.CompletedAt != nil {
+		completedAt := *replay.CompletedAt
+		record.CompletedAt = &completedAt
+	}
+	return record
+}
+
+func replayFromRecord(record *store.ReplayRecord) *Replay {
+	replay := &Replay{
+		ID:          record.ID,
+		SourceRunID: record.SourceRunID,
+		NewRunID:    record.NewRunID,
+		DiffID:      record.DiffID,
+		Mode:        ReplayMode(record.Mode),
+		Status:      ReplayStatus(record.Status),
+		Error:       record.Error,
+		StartedAt:   record.StartedAt,
+	}
+	if record.CompletedAt != nil {
+		completedAt := *record.CompletedAt
+		replay.CompletedAt = &completedAt
+	}
+	return replay
 }

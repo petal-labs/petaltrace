@@ -18,6 +18,7 @@ type mockStore struct {
 	runs     map[string]*store.Run
 	spans    map[string][]*store.Span
 	diffs    map[string]*store.RunDiff
+	replays  map[string]*store.ReplayRecord
 	pricing  map[string]*store.PricingEntry
 	stats    *store.StoreStats
 	statsErr error
@@ -28,6 +29,7 @@ func newMockStore() *mockStore {
 		runs:    make(map[string]*store.Run),
 		spans:   make(map[string][]*store.Span),
 		diffs:   make(map[string]*store.RunDiff),
+		replays: make(map[string]*store.ReplayRecord),
 		pricing: make(map[string]*store.PricingEntry),
 		stats: &store.StoreStats{
 			DatabaseSize: 1024,
@@ -57,6 +59,27 @@ func (m *mockStore) ListRuns(ctx context.Context, opts store.ListRunsOptions) ([
 	return runs, "", nil
 }
 func (m *mockStore) UpdateRunAggregates(ctx context.Context, runID string) error { return nil }
+
+func (m *mockStore) CreateReplay(ctx context.Context, replay *store.ReplayRecord) error {
+	m.replays[replay.ID] = replay
+	return nil
+}
+func (m *mockStore) GetReplay(ctx context.Context, id string) (*store.ReplayRecord, error) {
+	return m.replays[id], nil
+}
+func (m *mockStore) UpdateReplay(ctx context.Context, replay *store.ReplayRecord) error {
+	m.replays[replay.ID] = replay
+	return nil
+}
+func (m *mockStore) ListReplays(ctx context.Context, sourceRunID string) ([]store.ReplayRecord, error) {
+	var replays []store.ReplayRecord
+	for _, replay := range m.replays {
+		if sourceRunID == "" || replay.SourceRunID == sourceRunID {
+			replays = append(replays, *replay)
+		}
+	}
+	return replays, nil
+}
 
 func (m *mockStore) CreateSpan(ctx context.Context, span *store.Span) error         { return nil }
 func (m *mockStore) CreateSpanBatch(ctx context.Context, spans []*store.Span) error { return nil }
@@ -464,5 +487,55 @@ func TestServer_handleStats(t *testing.T) {
 
 	if resp.Runtime.GoVersion == "" {
 		t.Error("GoVersion should not be empty")
+	}
+}
+
+func TestServer_ReplayEndpointsLoadPersistedRecords(t *testing.T) {
+	ms := newMockStore()
+	startedAt := time.Now().UTC().Truncate(time.Second)
+	completedAt := startedAt.Add(time.Minute)
+	ms.replays["replay-1"] = &store.ReplayRecord{
+		ID:          "replay-1",
+		SourceRunID: "source-run",
+		NewRunID:    "new-run",
+		DiffID:      "diff-1",
+		Mode:        "mocked",
+		Status:      "completed",
+		StartedAt:   startedAt,
+		CompletedAt: &completedAt,
+	}
+
+	listServer := NewServer(ServerConfig{Store: ms})
+	listWriter := httptest.NewRecorder()
+	listRequest := httptest.NewRequest(http.MethodGet, "/api/replays?source_run_id=source-run", nil)
+	listServer.handleListReplays(listWriter, listRequest)
+
+	var listResponse struct {
+		Replays []ReplayAPIResponse `json:"replays"`
+		Count   int                 `json:"count"`
+	}
+	if err := json.NewDecoder(listWriter.Body).Decode(&listResponse); err != nil {
+		t.Fatalf("decode replay list: %v", err)
+	}
+	if listWriter.Code != http.StatusOK || listResponse.Count != 1 || len(listResponse.Replays) != 1 {
+		t.Fatalf("list response = (%d, %#v), want one replay", listWriter.Code, listResponse)
+	}
+	if listResponse.Replays[0].ReplayID != "replay-1" || listResponse.Replays[0].DiffID != "diff-1" {
+		t.Fatalf("listed replay = %#v, want persisted replay IDs", listResponse.Replays[0])
+	}
+
+	// A new Server instance represents a daemon restart; it must read the same record from the store.
+	statusServer := NewServer(ServerConfig{Store: ms})
+	statusWriter := httptest.NewRecorder()
+	statusRequest := httptest.NewRequest(http.MethodGet, "/api/replay/replay-1", nil)
+	statusServer.handler().ServeHTTP(statusWriter, statusRequest)
+
+	var statusResponse ReplayAPIResponse
+	if err := json.NewDecoder(statusWriter.Body).Decode(&statusResponse); err != nil {
+		t.Fatalf("decode replay status: %v", err)
+	}
+	if statusWriter.Code != http.StatusOK || statusResponse.Status != "completed" ||
+		statusResponse.NewRunID != "new-run" || statusResponse.DiffID != "diff-1" {
+		t.Fatalf("status response = (%d, %#v), want persisted replay status", statusWriter.Code, statusResponse)
 	}
 }

@@ -89,6 +89,25 @@ var postgresMigrations = []postgresMigration{
 			`CREATE INDEX idx_spans_trace ON spans(trace_id)`,
 		},
 	},
+	{
+		version: 2,
+		name:    "replay_records",
+		statements: []string{
+			`CREATE TABLE replays (
+				id TEXT PRIMARY KEY,
+				source_run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+				new_run_id TEXT,
+				diff_id TEXT,
+				mode TEXT NOT NULL,
+				status TEXT NOT NULL,
+				error_message TEXT,
+				started_at TEXT NOT NULL,
+				completed_at TEXT
+			)`,
+			`CREATE INDEX idx_replays_source ON replays(source_run_id, started_at DESC)`,
+			`CREATE INDEX idx_replays_started ON replays(started_at DESC)`,
+		},
+	},
 }
 
 const postgresRunColumns = `id, workflow_id, workflow_name, workflow_version, source_kind, status,

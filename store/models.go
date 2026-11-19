@@ -42,6 +42,18 @@ type Run struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+type ReplayRecord struct {
+	ID          string     `json:"id"`
+	SourceRunID string     `json:"source_run_id"`
+	NewRunID    string     `json:"new_run_id,omitempty"`
+	DiffID      string     `json:"diff_id,omitempty"`
+	Mode        string     `json:"mode"`
+	Status      string     `json:"status"`
+	Error       string     `json:"error,omitempty"`
+	StartedAt   time.Time  `json:"started_at"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
+}
+
 type SpanKind string
 
 const (

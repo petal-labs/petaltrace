@@ -137,6 +137,26 @@ CREATE VIRTUAL TABLE IF NOT EXISTS spans_fts5 USING fts5(
 );
 `,
 	},
+	{
+		Version: 3,
+		Name:    "replay_records",
+		Up: `
+CREATE TABLE replays (
+    id              TEXT PRIMARY KEY,
+    source_run_id   TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+    new_run_id      TEXT,
+    diff_id         TEXT,
+    mode            TEXT NOT NULL,
+    status          TEXT NOT NULL,
+    error_message   TEXT,
+    started_at      TEXT NOT NULL,
+    completed_at    TEXT
+);
+
+CREATE INDEX idx_replays_source ON replays(source_run_id, started_at DESC);
+CREATE INDEX idx_replays_started ON replays(started_at DESC);
+`,
+	},
 }
 
 var migrationDataMigrations = map[int]func(*sql.Tx) error{

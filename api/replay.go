@@ -3,28 +3,24 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"sync"
 	"time"
 
 	"github.com/petal-labs/petaltrace/replay"
 )
 
-// replayEngine is the shared replay engine instance
-var (
-	replayEngine     *replay.Engine
-	replayEngineOnce sync.Once
-)
-
 // getReplayEngine returns the replay engine, creating it if necessary
 func (s *Server) getReplayEngine() *replay.Engine {
-	replayEngineOnce.Do(func() {
-		replayEngine = replay.NewEngine(replay.EngineConfig{
+	s.replayMu.Lock()
+	defer s.replayMu.Unlock()
+
+	if s.replayEngine == nil {
+		s.replayEngine = replay.NewEngine(replay.EngineConfig{
 			Store:        s.store,
 			PetalFlowURL: "http://localhost:8080", // TODO: make configurable
 			Logger:       s.logger,
 		})
-	})
-	return replayEngine
+	}
+	return s.replayEngine
 }
 
 // handleTriggerReplay handles POST /api/replay
@@ -149,11 +145,11 @@ func (s *Server) handleListReplays(w http.ResponseWriter, r *http.Request) {
 
 	engine := s.getReplayEngine()
 
-	var replays []*replay.Replay
-	if sourceRunID != "" {
-		replays = engine.GetReplaysBySourceRun(sourceRunID)
-	} else {
-		replays = engine.ListReplays()
+	replays, err := engine.LoadReplays(r.Context(), sourceRunID)
+	if err != nil {
+		s.logger.Error("failed to list replays", "error", err)
+		s.writeError(w, http.StatusInternalServerError, "failed to list replays")
+		return
 	}
 
 	// Convert to API response format

@@ -46,9 +46,43 @@ func TestNewEngine(t *testing.T) {
 		t.Error("engine.diffEngine is nil")
 	}
 
-	if engine.replays == nil {
-		t.Error("engine.replays is nil")
+}
+
+func TestEngine_PersistsReplayAcrossEngineInstances(t *testing.T) {
+	ctx := context.Background()
+	ms := newMockStore()
+	ms.runs["source-run"] = &store.Run{
+		ID:            "source-run",
+		Status:        store.RunStatusCompleted,
+		GraphSnapshot: []byte(`{"nodes":[]}`),
 	}
+
+	engine := NewEngine(EngineConfig{Store: ms})
+	result, err := engine.Execute(ctx, &ReplayRequest{
+		SourceRunID: "source-run",
+		Mode:        ReplayModeMocked,
+	})
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	restartedEngine := NewEngine(EngineConfig{Store: ms})
+	persisted, ok := restartedEngine.GetReplay(result.ID)
+	if !ok {
+		t.Fatal("replay not found by a new engine instance")
+	}
+	if persisted.SourceRunID != "source-run" ||
+		persisted.NewRunID != result.NewRunID ||
+		persisted.Mode != ReplayModeMocked ||
+		persisted.Status != ReplayStatusCompleted {
+		t.Fatalf("persisted replay = %#v, want %#v", persisted, result)
+	}
+
+	replays := restartedEngine.GetReplaysBySourceRun("source-run")
+	if len(replays) != 1 || replays[0].ID != result.ID {
+		t.Fatalf("source replays = %#v, want one replay %q", replays, result.ID)
+	}
+
 }
 
 func TestEngine_GetReplay(t *testing.T) {
@@ -61,7 +95,7 @@ func TestEngine_GetReplay(t *testing.T) {
 		SourceRunID: "run-1",
 		Status:      ReplayStatusCompleted,
 	}
-	engine.replays["replay-1"] = replay
+	ms.replays["replay-1"] = replayRecordForTest(replay)
 
 	// Found
 	r, ok := engine.GetReplay("replay-1")
@@ -90,8 +124,8 @@ func TestEngine_ListReplays(t *testing.T) {
 	}
 
 	// Add replays
-	engine.replays["replay-1"] = &Replay{ID: "replay-1"}
-	engine.replays["replay-2"] = &Replay{ID: "replay-2"}
+	ms.replays["replay-1"] = replayRecordForTest(&Replay{ID: "replay-1"})
+	ms.replays["replay-2"] = replayRecordForTest(&Replay{ID: "replay-2"})
 
 	replays = engine.ListReplays()
 	if len(replays) != 2 {
@@ -104,9 +138,9 @@ func TestEngine_GetReplaysBySourceRun(t *testing.T) {
 	engine := NewEngine(EngineConfig{Store: ms})
 
 	// Add replays with different source runs
-	engine.replays["replay-1"] = &Replay{ID: "replay-1", SourceRunID: "run-1"}
-	engine.replays["replay-2"] = &Replay{ID: "replay-2", SourceRunID: "run-1"}
-	engine.replays["replay-3"] = &Replay{ID: "replay-3", SourceRunID: "run-2"}
+	ms.replays["replay-1"] = replayRecordForTest(&Replay{ID: "replay-1", SourceRunID: "run-1"})
+	ms.replays["replay-2"] = replayRecordForTest(&Replay{ID: "replay-2", SourceRunID: "run-1"})
+	ms.replays["replay-3"] = replayRecordForTest(&Replay{ID: "replay-3", SourceRunID: "run-2"})
 
 	// Get replays for run-1
 	replays := engine.GetReplaysBySourceRun("run-1")
@@ -144,7 +178,7 @@ func TestEngine_RefreshReplayStatus(t *testing.T) {
 		NewRunID: "new-run-1",
 		Status:   ReplayStatusCompleted,
 	}
-	engine.replays["replay-completed"] = completedReplay
+	ms.replays["replay-completed"] = replayRecordForTest(completedReplay)
 
 	r, err := engine.RefreshReplayStatus(ctx, "replay-completed")
 	if err != nil {
@@ -160,7 +194,7 @@ func TestEngine_RefreshReplayStatus(t *testing.T) {
 		NewRunID: "",
 		Status:   ReplayStatusRunning,
 	}
-	engine.replays["replay-no-runid"] = noRunIDReplay
+	ms.replays["replay-no-runid"] = replayRecordForTest(noRunIDReplay)
 
 	r, err = engine.RefreshReplayStatus(ctx, "replay-no-runid")
 	if err != nil {
@@ -180,7 +214,7 @@ func TestEngine_RefreshReplayStatus(t *testing.T) {
 		NewRunID: "new-run-completed",
 		Status:   ReplayStatusRunning,
 	}
-	engine.replays["replay-running"] = runningReplay
+	ms.replays["replay-running"] = replayRecordForTest(runningReplay)
 
 	r, err = engine.RefreshReplayStatus(ctx, "replay-running")
 	if err != nil {
@@ -203,7 +237,7 @@ func TestEngine_RefreshReplayStatus(t *testing.T) {
 		NewRunID: "new-run-failed",
 		Status:   ReplayStatusRunning,
 	}
-	engine.replays["replay-failing"] = failingReplay
+	ms.replays["replay-failing"] = replayRecordForTest(failingReplay)
 
 	r, err = engine.RefreshReplayStatus(ctx, "replay-failing")
 	if err != nil {
@@ -212,6 +246,24 @@ func TestEngine_RefreshReplayStatus(t *testing.T) {
 	if r.Status != ReplayStatusFailed {
 		t.Errorf("Status = %v, want %v", r.Status, ReplayStatusFailed)
 	}
+}
+
+func replayRecordForTest(replay *Replay) *store.ReplayRecord {
+	record := &store.ReplayRecord{
+		ID:          replay.ID,
+		SourceRunID: replay.SourceRunID,
+		NewRunID:    replay.NewRunID,
+		DiffID:      replay.DiffID,
+		Mode:        string(replay.Mode),
+		Status:      string(replay.Status),
+		Error:       replay.Error,
+		StartedAt:   replay.StartedAt,
+	}
+	if replay.CompletedAt != nil {
+		completedAt := *replay.CompletedAt
+		record.CompletedAt = &completedAt
+	}
+	return record
 }
 
 func TestReplayStruct(t *testing.T) {

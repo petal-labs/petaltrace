@@ -31,7 +31,7 @@ func NewSQLiteStore(opts SQLiteOptions) (*SQLiteStore, error) {
 		return nil, fmt.Errorf("creating data directory: %w", err)
 	}
 
-	dsn := opts.Path + "?_foreign_keys=on"
+	dsn := opts.Path + "?_pragma=foreign_keys(1)"
 	if opts.WALMode {
 		dsn += "&_journal_mode=WAL"
 	}
