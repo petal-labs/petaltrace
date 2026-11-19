@@ -432,6 +432,7 @@ func scanRunFromRows(rows *sql.Rows) (*Run, error) {
 func buildRunsOrderByClause(sortBy, sortOrder string) string {
 	// Whitelist of allowed sort columns
 	validColumns := map[string]string{
+		"id":                 "id",
 		"started_at":         "started_at",
 		"completed_at":       "completed_at",
 		"created_at":         "created_at",
