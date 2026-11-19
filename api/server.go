@@ -13,6 +13,7 @@ import (
 
 	"github.com/petal-labs/petaltrace/internal/netutil"
 	"github.com/petal-labs/petaltrace/pricing"
+	"github.com/petal-labs/petaltrace/replay"
 	"github.com/petal-labs/petaltrace/store"
 )
 
@@ -26,6 +27,8 @@ type Server struct {
 	serveDone    chan struct{}
 	serverMu     sync.Mutex
 	addr         string
+	replayMu     sync.Mutex
+	replayEngine *replay.Engine
 
 	// SSE subscribers
 	liveSubscribers map[chan *SSEEvent]struct{}

@@ -16,6 +16,7 @@ type mockStore struct {
 	runs    map[string]*store.Run
 	spans   map[string][]*store.Span
 	diffs   map[string]*store.RunDiff
+	replays map[string]*store.ReplayRecord
 	pricing map[string]*store.PricingEntry
 	stats   *store.StoreStats
 }
@@ -25,6 +26,7 @@ func newMockStore() *mockStore {
 		runs:    make(map[string]*store.Run),
 		spans:   make(map[string][]*store.Span),
 		diffs:   make(map[string]*store.RunDiff),
+		replays: make(map[string]*store.ReplayRecord),
 		pricing: make(map[string]*store.PricingEntry),
 		stats: &store.StoreStats{
 			DatabaseSize: 1024,
@@ -51,6 +53,27 @@ func (m *mockStore) ListRuns(ctx context.Context, opts store.ListRunsOptions) ([
 	return runs, "", nil
 }
 func (m *mockStore) UpdateRunAggregates(ctx context.Context, runID string) error { return nil }
+
+func (m *mockStore) CreateReplay(ctx context.Context, replay *store.ReplayRecord) error {
+	m.replays[replay.ID] = replay
+	return nil
+}
+func (m *mockStore) GetReplay(ctx context.Context, id string) (*store.ReplayRecord, error) {
+	return m.replays[id], nil
+}
+func (m *mockStore) UpdateReplay(ctx context.Context, replay *store.ReplayRecord) error {
+	m.replays[replay.ID] = replay
+	return nil
+}
+func (m *mockStore) ListReplays(ctx context.Context, sourceRunID string) ([]store.ReplayRecord, error) {
+	var replays []store.ReplayRecord
+	for _, replay := range m.replays {
+		if sourceRunID == "" || replay.SourceRunID == sourceRunID {
+			replays = append(replays, *replay)
+		}
+	}
+	return replays, nil
+}
 
 func (m *mockStore) CreateSpan(ctx context.Context, span *store.Span) error         { return nil }
 func (m *mockStore) CreateSpanBatch(ctx context.Context, spans []*store.Span) error { return nil }

@@ -29,8 +29,8 @@ func TestNewSQLiteStore(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetSchemaVersion() error = %v", err)
 	}
-	if version != 2 {
-		t.Errorf("schema version = %d, want 2", version)
+	if version != 3 {
+		t.Errorf("schema version = %d, want 3", version)
 	}
 }
 
@@ -54,8 +54,8 @@ func TestMigrationsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetSchemaVersion() error = %v", err)
 	}
-	if version != 2 {
-		t.Errorf("schema version = %d, want 2", version)
+	if version != 3 {
+		t.Errorf("schema version = %d, want 3", version)
 	}
 }
 

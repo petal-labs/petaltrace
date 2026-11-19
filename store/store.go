@@ -45,6 +45,11 @@ type TraceStore interface {
 	ListRuns(ctx context.Context, opts ListRunsOptions) ([]Run, string, error)
 	UpdateRunAggregates(ctx context.Context, runID string) error
 
+	CreateReplay(ctx context.Context, replay *ReplayRecord) error
+	GetReplay(ctx context.Context, id string) (*ReplayRecord, error)
+	UpdateReplay(ctx context.Context, replay *ReplayRecord) error
+	ListReplays(ctx context.Context, sourceRunID string) ([]ReplayRecord, error)
+
 	CreateSpan(ctx context.Context, span *Span) error
 	CreateSpanBatch(ctx context.Context, spans []*Span) error
 	GetSpan(ctx context.Context, id string) (*Span, error)

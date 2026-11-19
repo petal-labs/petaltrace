@@ -233,9 +233,9 @@ func runReplayDiffCmd(cmd *cobra.Command, args []string) error {
 		PetalFlowURL: replayPetalFlowURL,
 	})
 
-	r, ok := replayEngine.GetReplay(replayID)
-	if !ok {
-		return fmt.Errorf("replay not found: %s", replayID)
+	r, err := replayEngine.LoadReplay(cmd.Context(), replayID)
+	if err != nil {
+		return fmt.Errorf("getting replay: %w", err)
 	}
 
 	if r.Status != replay.ReplayStatusCompleted {
@@ -257,6 +257,10 @@ func runReplayDiffCmd(cmd *cobra.Command, args []string) error {
 	runDiff, err := diffEngine.ComputeDiff(cmd.Context(), r.SourceRunID, r.NewRunID, opts)
 	if err != nil {
 		return fmt.Errorf("computing diff: %w", err)
+	}
+	r.DiffID = runDiff.ID
+	if err := replayEngine.UpdateReplay(cmd.Context(), r); err != nil {
+		return fmt.Errorf("persisting replay diff ID: %w", err)
 	}
 
 	// Output diff summary

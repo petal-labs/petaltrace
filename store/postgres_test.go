@@ -42,6 +42,43 @@ func TestPostgresStoreRunSpanLifecycle(t *testing.T) {
 		}
 	}
 
+	replayStartedAt := now.Add(-30 * time.Second)
+	replay := &ReplayRecord{
+		ID:          prefix + "-replay",
+		SourceRunID: runA.ID,
+		Mode:        "mocked",
+		Status:      "running",
+		StartedAt:   replayStartedAt,
+	}
+	if err := traceStore.CreateReplay(ctx, replay); err != nil {
+		t.Fatalf("CreateReplay(): %v", err)
+	}
+	replay.NewRunID = runB.ID
+	replay.DiffID = prefix + "-diff"
+	replay.Status = "completed"
+	replayCompletedAt := replayStartedAt.Add(time.Second)
+	replay.CompletedAt = &replayCompletedAt
+	if err := traceStore.UpdateReplay(ctx, replay); err != nil {
+		t.Fatalf("UpdateReplay(): %v", err)
+	}
+	persistedReplay, err := traceStore.GetReplay(ctx, replay.ID)
+	if err != nil {
+		t.Fatalf("GetReplay(): %v", err)
+	}
+	if persistedReplay == nil || persistedReplay.SourceRunID != runA.ID ||
+		persistedReplay.NewRunID != runB.ID || persistedReplay.DiffID != replay.DiffID ||
+		persistedReplay.Mode != replay.Mode || persistedReplay.Status != replay.Status ||
+		persistedReplay.CompletedAt == nil || !persistedReplay.CompletedAt.Equal(*replay.CompletedAt) {
+		t.Fatalf("persisted replay = %#v, want %#v", persistedReplay, replay)
+	}
+	replaysForSource, err := traceStore.ListReplays(ctx, runA.ID)
+	if err != nil {
+		t.Fatalf("ListReplays(source): %v", err)
+	}
+	if len(replaysForSource) != 1 || replaysForSource[0].ID != replay.ID {
+		t.Fatalf("ListReplays(source) = %#v, want replay %q", replaysForSource, replay.ID)
+	}
+
 	updatedRun, err := traceStore.GetRun(ctx, runA.ID)
 	if err != nil {
 		t.Fatalf("GetRun(): %v", err)
@@ -208,6 +245,16 @@ func TestPostgresStoreRunSpanLifecycle(t *testing.T) {
 	}
 	if deletedSpan != nil {
 		t.Fatalf("GetSpan() after run delete = %#v, want nil", deletedSpan)
+	}
+	if err := traceStore.DeleteRun(ctx, runA.ID); err != nil {
+		t.Fatalf("DeleteRun(source): %v", err)
+	}
+	replaysForSource, err = traceStore.ListReplays(ctx, runA.ID)
+	if err != nil {
+		t.Fatalf("ListReplays() after source delete: %v", err)
+	}
+	if len(replaysForSource) != 0 {
+		t.Fatalf("replays after source delete = %#v, want none", replaysForSource)
 	}
 }
 

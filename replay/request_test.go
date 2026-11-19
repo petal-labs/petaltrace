@@ -11,14 +11,16 @@ import (
 
 // mockStore implements a minimal TraceStore for testing
 type mockStore struct {
-	runs  map[string]*store.Run
-	spans map[string][]*store.Span
+	runs    map[string]*store.Run
+	spans   map[string][]*store.Span
+	replays map[string]*store.ReplayRecord
 }
 
 func newMockStore() *mockStore {
 	return &mockStore{
-		runs:  make(map[string]*store.Run),
-		spans: make(map[string][]*store.Span),
+		runs:    make(map[string]*store.Run),
+		spans:   make(map[string][]*store.Span),
+		replays: make(map[string]*store.ReplayRecord),
 	}
 }
 
@@ -46,6 +48,26 @@ func (m *mockStore) UpdateRun(ctx context.Context, run *store.Run) error { retur
 func (m *mockStore) DeleteRun(ctx context.Context, id string) error      { return nil }
 func (m *mockStore) ListRuns(ctx context.Context, opts store.ListRunsOptions) ([]store.Run, string, error) {
 	return nil, "", nil
+}
+func (m *mockStore) CreateReplay(ctx context.Context, replay *store.ReplayRecord) error {
+	m.replays[replay.ID] = replay
+	return nil
+}
+func (m *mockStore) GetReplay(ctx context.Context, id string) (*store.ReplayRecord, error) {
+	return m.replays[id], nil
+}
+func (m *mockStore) UpdateReplay(ctx context.Context, replay *store.ReplayRecord) error {
+	m.replays[replay.ID] = replay
+	return nil
+}
+func (m *mockStore) ListReplays(ctx context.Context, sourceRunID string) ([]store.ReplayRecord, error) {
+	var replays []store.ReplayRecord
+	for _, replay := range m.replays {
+		if sourceRunID == "" || replay.SourceRunID == sourceRunID {
+			replays = append(replays, *replay)
+		}
+	}
+	return replays, nil
 }
 func (m *mockStore) CreateSpan(ctx context.Context, span *store.Span) error         { return nil }
 func (m *mockStore) CreateSpanBatch(ctx context.Context, spans []*store.Span) error { return nil }
