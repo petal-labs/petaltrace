@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -106,6 +107,45 @@ var postgresMigrations = []postgresMigration{
 			)`,
 			`CREATE INDEX idx_replays_source ON replays(source_run_id, started_at DESC)`,
 			`CREATE INDEX idx_replays_started ON replays(started_at DESC)`,
+		},
+	},
+	{
+		version: 3,
+		name:    "search_diffs_pricing",
+		statements: []string{
+			// Span text index for full-text search, mirroring the SQLite
+			// FTS5 spans_fts5 table. The tsvector is maintained on upsert
+			// so the GIN index covers prompt and completion text.
+			`CREATE TABLE span_text (
+				span_id TEXT PRIMARY KEY REFERENCES spans(id) ON DELETE CASCADE,
+				prompt_text TEXT,
+				completion_text TEXT,
+				search_vector tsvector NOT NULL
+			)`,
+			`CREATE INDEX idx_span_text_search ON span_text USING GIN (search_vector)`,
+			// Cached diffs, mirroring the SQLite diffs table.
+			`CREATE TABLE diffs (
+				id TEXT PRIMARY KEY,
+				base_run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+				compare_run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+				diff_data TEXT NOT NULL,
+				created_at TEXT NOT NULL,
+				UNIQUE (base_run_id, compare_run_id)
+			)`,
+			`CREATE INDEX idx_diffs_base ON diffs(base_run_id)`,
+			`CREATE INDEX idx_diffs_compare ON diffs(compare_run_id)`,
+			// Pricing table, mirroring the SQLite pricing table.
+			`CREATE TABLE pricing (
+				provider TEXT NOT NULL,
+				model TEXT NOT NULL,
+				input_per_1m DOUBLE PRECISION NOT NULL,
+				output_per_1m DOUBLE PRECISION NOT NULL,
+				cache_read_per_1m DOUBLE PRECISION,
+				cache_write_per_1m DOUBLE PRECISION,
+				effective_from TEXT NOT NULL,
+				PRIMARY KEY (provider, model, effective_from)
+			)`,
+			`CREATE INDEX idx_pricing_lookup ON pricing(provider, model)`,
 		},
 	},
 }
@@ -560,36 +600,209 @@ func (s *PostgresStore) UpdateSpan(ctx context.Context, span *Span) error {
 	return nil
 }
 
-func (s *PostgresStore) IndexSpanText(context.Context, string, string, string) error {
-	return fmt.Errorf("indexing span text: %w", ErrUnsupportedOperation)
+func (s *PostgresStore) IndexSpanText(ctx context.Context, spanID, promptText, completionText string) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO span_text (span_id, prompt_text, completion_text, search_vector)
+		VALUES ($1, $2, $3, to_tsvector('english', coalesce($2, '') || ' ' || coalesce($3, '')))
+		ON CONFLICT (span_id) DO UPDATE SET
+			prompt_text = EXCLUDED.prompt_text,
+			completion_text = EXCLUDED.completion_text,
+			search_vector = EXCLUDED.search_vector
+	`, spanID, promptText, completionText)
+
+	if err != nil {
+		return fmt.Errorf("indexing span text: %w", err)
+	}
+
+	return nil
 }
 
-func (s *PostgresStore) SearchSpans(context.Context, string, int) ([]*Span, error) {
-	return nil, fmt.Errorf("searching spans: %w", ErrUnsupportedOperation)
+func (s *PostgresStore) SearchSpans(ctx context.Context, query string, limit int) ([]*Span, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT
+			s.id, s.run_id, s.parent_id, s.trace_id, s.kind, s.name, s.status,
+			s.started_at, s.completed_at, s.duration_ms,
+			s.node_data, s.llm_data, s.tool_data, s.edge_data,
+			s.error_code, s.error_message, s.error_details,
+			s.attributes, s.created_at
+		FROM spans s
+		JOIN span_text st ON s.id = st.span_id
+		WHERE st.search_vector @@ websearch_to_tsquery('english', $1)
+		ORDER BY s.started_at DESC
+		LIMIT $2
+	`, query, limit)
+	if err != nil {
+		return nil, fmt.Errorf("searching spans: %w", err)
+	}
+	defer rows.Close()
+
+	return scanSpans(rows)
 }
 
-func (s *PostgresStore) CreateDiff(context.Context, *RunDiff) error {
-	return fmt.Errorf("creating diff: %w", ErrUnsupportedOperation)
+func (s *PostgresStore) CreateDiff(ctx context.Context, diff *RunDiff) error {
+	if diff.ID == "" {
+		diff.ID = NewID()
+	}
+	if diff.CreatedAt.IsZero() {
+		diff.CreatedAt = time.Now().UTC()
+	}
+
+	diffData, err := json.Marshal(diff)
+	if err != nil {
+		return fmt.Errorf("marshaling diff: %w", err)
+	}
+
+	_, err = s.db.ExecContext(ctx, `
+		INSERT INTO diffs (id, base_run_id, compare_run_id, diff_data, created_at)
+		VALUES ($1, $2, $3, $4, $5)
+	`, diff.ID, diff.BaseRunID, diff.CompareRunID, string(diffData), formatTime(diff.CreatedAt))
+
+	if err != nil {
+		return fmt.Errorf("inserting diff: %w", err)
+	}
+
+	return nil
 }
 
-func (s *PostgresStore) GetDiff(context.Context, string) (*RunDiff, error) {
-	return nil, fmt.Errorf("getting diff: %w", ErrUnsupportedOperation)
+func (s *PostgresStore) GetDiff(ctx context.Context, id string) (*RunDiff, error) {
+	var diffData string
+	row := s.db.QueryRowContext(ctx, `SELECT diff_data FROM diffs WHERE id = $1`, id)
+	if err := row.Scan(&diffData); err == sql.ErrNoRows {
+		return nil, nil
+	} else if err != nil {
+		return nil, fmt.Errorf("getting diff: %w", err)
+	}
+
+	var diff RunDiff
+	if err := json.Unmarshal([]byte(diffData), &diff); err != nil {
+		return nil, fmt.Errorf("unmarshaling diff: %w", err)
+	}
+
+	return &diff, nil
 }
 
-func (s *PostgresStore) GetDiffByRuns(context.Context, string, string) (*RunDiff, error) {
-	return nil, fmt.Errorf("getting diff by runs: %w", ErrUnsupportedOperation)
+func (s *PostgresStore) GetDiffByRuns(ctx context.Context, baseRunID, compareRunID string) (*RunDiff, error) {
+	var diffData string
+	row := s.db.QueryRowContext(ctx, `
+		SELECT diff_data FROM diffs
+		WHERE base_run_id = $1 AND compare_run_id = $2
+	`, baseRunID, compareRunID)
+
+	if err := row.Scan(&diffData); err == sql.ErrNoRows {
+		return nil, nil
+	} else if err != nil {
+		return nil, fmt.Errorf("getting diff by runs: %w", err)
+	}
+
+	var diff RunDiff
+	if err := json.Unmarshal([]byte(diffData), &diff); err != nil {
+		return nil, fmt.Errorf("unmarshaling diff: %w", err)
+	}
+
+	return &diff, nil
 }
 
-func (s *PostgresStore) GetPricing(context.Context, string, string) (*PricingEntry, error) {
-	return nil, fmt.Errorf("getting pricing: %w", ErrUnsupportedOperation)
+func (s *PostgresStore) GetPricing(ctx context.Context, provider, model string) (*PricingEntry, error) {
+	row := s.db.QueryRowContext(ctx, `
+		SELECT provider, model, input_per_1m, output_per_1m,
+			cache_read_per_1m, cache_write_per_1m, effective_from
+		FROM pricing
+		WHERE provider = $1 AND model = $2
+		ORDER BY effective_from DESC
+		LIMIT 1
+	`, provider, model)
+
+	return scanPricingRow(row)
 }
 
-func (s *PostgresStore) UpsertPricing(context.Context, *PricingEntry) error {
-	return fmt.Errorf("updating pricing: %w", ErrUnsupportedOperation)
+func (s *PostgresStore) UpsertPricing(ctx context.Context, entry *PricingEntry) error {
+	_, err := s.db.ExecContext(ctx, `
+		INSERT INTO pricing (
+			provider, model, input_per_1m, output_per_1m,
+			cache_read_per_1m, cache_write_per_1m, effective_from
+		) VALUES ($1, $2, $3, $4, $5, $6, $7)
+		ON CONFLICT (provider, model, effective_from) DO UPDATE SET
+			input_per_1m = EXCLUDED.input_per_1m,
+			output_per_1m = EXCLUDED.output_per_1m,
+			cache_read_per_1m = EXCLUDED.cache_read_per_1m,
+			cache_write_per_1m = EXCLUDED.cache_write_per_1m
+	`,
+		entry.Provider,
+		entry.Model,
+		entry.InputPer1M,
+		entry.OutputPer1M,
+		entry.CacheReadPer1M,
+		entry.CacheWritePer1M,
+		formatTime(entry.EffectiveFrom),
+	)
+
+	if err != nil {
+		return fmt.Errorf("upserting pricing: %w", err)
+	}
+
+	return nil
 }
 
-func (s *PostgresStore) ListPricing(context.Context) ([]PricingEntry, error) {
-	return nil, fmt.Errorf("listing pricing: %w", ErrUnsupportedOperation)
+func (s *PostgresStore) ListPricing(ctx context.Context) ([]PricingEntry, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT provider, model, input_per_1m, output_per_1m,
+			cache_read_per_1m, cache_write_per_1m, effective_from
+		FROM pricing
+		ORDER BY provider, model, effective_from DESC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("listing pricing: %w", err)
+	}
+	defer rows.Close()
+
+	var entries []PricingEntry
+	for rows.Next() {
+		entry, err := scanPricingRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, *entry)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("reading pricing: %w", err)
+	}
+
+	return entries, nil
+}
+
+func scanPricingRow(row scanner) (*PricingEntry, error) {
+	var entry PricingEntry
+	var effectiveFrom string
+	var cacheRead, cacheWrite sql.NullFloat64
+
+	if err := row.Scan(
+		&entry.Provider,
+		&entry.Model,
+		&entry.InputPer1M,
+		&entry.OutputPer1M,
+		&cacheRead,
+		&cacheWrite,
+		&effectiveFrom,
+	); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("scanning pricing: %w", err)
+	}
+
+	if cacheRead.Valid {
+		entry.CacheReadPer1M = cacheRead.Float64
+	}
+	if cacheWrite.Valid {
+		entry.CacheWritePer1M = cacheWrite.Float64
+	}
+	entry.EffectiveFrom, _ = parseTime(effectiveFrom)
+
+	return &entry, nil
 }
 
 func (s *PostgresStore) GetStats(ctx context.Context) (*StoreStats, error) {
@@ -638,8 +851,42 @@ func (s *PostgresStore) GetStats(ctx context.Context) (*StoreStats, error) {
 	return stats, nil
 }
 
-func (s *PostgresStore) GarbageCollect(context.Context, int, bool) (int, error) {
-	return 0, fmt.Errorf("garbage collecting runs: %w", ErrUnsupportedOperation)
+func (s *PostgresStore) GarbageCollect(ctx context.Context, retentionDays int, dryRun bool) (int, error) {
+	cutoff := time.Now().AddDate(0, 0, -retentionDays).UTC()
+	cutoffStr := formatTime(cutoff)
+
+	var count int
+	row := s.db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM runs
+		WHERE started_at < $1 AND starred = 0
+	`, cutoffStr)
+	if err := row.Scan(&count); err != nil {
+		return 0, fmt.Errorf("counting runs to delete: %w", err)
+	}
+
+	if dryRun {
+		return count, nil
+	}
+
+	result, err := s.db.ExecContext(ctx, `
+		DELETE FROM runs
+		WHERE started_at < $1 AND starred = 0
+	`, cutoffStr)
+	if err != nil {
+		return 0, fmt.Errorf("deleting old runs: %w", err)
+	}
+
+	deleted, err := result.RowsAffected()
+	if err != nil {
+		return count, fmt.Errorf("checking deleted runs: %w", err)
+	}
+
+	return int(deleted), nil
+}
+
+// scanner abstracts over *sql.Row and *sql.Rows for shared row scanning.
+type scanner interface {
+	Scan(dest ...any) error
 }
 
 func postgresRunValues(run *Run) []any {
