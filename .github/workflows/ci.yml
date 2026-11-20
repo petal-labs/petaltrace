@@ -138,6 +138,8 @@ jobs:
 
       - name: Run gosec
         uses: securego/gosec@v2.22.11
+        env:
+          GOFLAGS: -buildvcs=false
         with:
           # G101: env var names (not actual secrets)
           # G104: unhandled errors on non-critical JSON encoding
