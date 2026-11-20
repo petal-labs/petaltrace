@@ -120,10 +120,12 @@ func runServe(cmd *cobra.Command, args []string) error {
 	// Start API server
 	apiAddr := net.JoinHostPort(cfg.Server.Host, strconv.Itoa(cfg.Server.Port))
 	apiServer := api.NewServer(api.ServerConfig{
-		Store:        traceStore,
-		PricingTable: pricingTable,
-		Logger:       logger,
-		Addr:         apiAddr,
+		Store:          traceStore,
+		PricingTable:   pricingTable,
+		Logger:         logger,
+		Addr:           apiAddr,
+		PetalFlowURL:   cfg.PetalFlow.URL,
+		PetalFlowToken: os.Getenv("PETALFLOW_API_TOKEN"),
 	})
 
 	if err := apiServer.Start(ctx); err != nil {

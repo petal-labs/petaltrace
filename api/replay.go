@@ -15,9 +15,10 @@ func (s *Server) getReplayEngine() *replay.Engine {
 
 	if s.replayEngine == nil {
 		s.replayEngine = replay.NewEngine(replay.EngineConfig{
-			Store:        s.store,
-			PetalFlowURL: "http://localhost:8080", // TODO: make configurable
-			Logger:       s.logger,
+			Store:          s.store,
+			PetalFlowURL:   s.petalFlowURL,
+			PetalFlowToken: s.petalFlowToken,
+			Logger:         s.logger,
 		})
 	}
 	return s.replayEngine

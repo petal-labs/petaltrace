@@ -20,6 +20,7 @@ type Config struct {
 	Storage   StorageConfig   `mapstructure:"storage"`
 	Retention RetentionConfig `mapstructure:"retention"`
 	Pricing   PricingConfig   `mapstructure:"pricing"`
+	PetalFlow PetalFlowConfig `mapstructure:"petalflow"`
 	MCP       MCPConfig       `mapstructure:"mcp"`
 	Auth      AuthConfig      `mapstructure:"auth"`
 }
@@ -65,6 +66,11 @@ type RetentionConfig struct {
 type PricingConfig struct {
 	Builtin   bool   `mapstructure:"builtin"`
 	Overrides string `mapstructure:"overrides"`
+}
+
+// PetalFlowConfig contains PetalFlow runtime connection settings.
+type PetalFlowConfig struct {
+	URL string `mapstructure:"url"`
 }
 
 type MCPConfig struct {
@@ -198,6 +204,7 @@ func setDefaults(v *viper.Viper) {
 
 	v.SetDefault("pricing.builtin", true)
 	v.SetDefault("pricing.overrides", "")
+	v.SetDefault("petalflow.url", "http://localhost:8080")
 
 	v.SetDefault("mcp.enabled", true)
 	v.SetDefault("mcp.transport", "stdio")

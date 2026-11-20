@@ -69,8 +69,23 @@ func TestLoadDefaults(t *testing.T) {
 		t.Errorf("MCP.Transport = %s, want stdio", cfg.MCP.Transport)
 	}
 
+	if cfg.PetalFlow.URL != "http://localhost:8080" {
+		t.Errorf("PetalFlow.URL = %q, want http://localhost:8080", cfg.PetalFlow.URL)
+	}
+
 	if cfg.Auth.Enabled {
 		t.Error("Auth.Enabled = true, want false")
+	}
+}
+
+func TestLoadPetalFlowURLFromEnv(t *testing.T) {
+	t.Setenv("PETALTRACE_PETALFLOW_URL", "http://petalflow.internal:8080")
+	cfg, err := Load("")
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.PetalFlow.URL != "http://petalflow.internal:8080" {
+		t.Fatalf("PetalFlow.URL = %q, want configured environment URL", cfg.PetalFlow.URL)
 	}
 }
 

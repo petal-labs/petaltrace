@@ -1,6 +1,10 @@
 package replay
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 )
@@ -42,6 +46,35 @@ func TestNewLiveReplayer(t *testing.T) {
 
 	if r2.requestTimeout != 30*time.Second {
 		t.Errorf("custom requestTimeout = %v, want %v", r2.requestTimeout, 30*time.Second)
+	}
+}
+
+func TestLiveReplayerSendsPetalFlowBearerToken(t *testing.T) {
+	tokenReceived := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tokenReceived = r.Header.Get("Authorization") == "Bearer petalflow-test-token"
+		if r.URL.Path != "/api/execute" {
+			t.Errorf("request path = %q, want /api/execute", r.URL.Path)
+		}
+		_ = json.NewEncoder(w).Encode(ExecuteResponse{RunID: "new-run", Status: "completed"})
+	}))
+	defer server.Close()
+
+	replayer := NewLiveReplayer(LiveReplayerConfig{
+		PetalFlowURL:   server.URL,
+		PetalFlowToken: "petalflow-test-token",
+	})
+	response, err := replayer.executeViaAPI(context.Background(), ExecuteRequest{
+		WorkflowID: "workflow-1",
+	})
+	if err != nil {
+		t.Fatalf("executeViaAPI(): %v", err)
+	}
+	if !tokenReceived {
+		t.Error("PetalFlow request did not include its bearer token")
+	}
+	if response.RunID != "new-run" || response.Status != "completed" {
+		t.Fatalf("executeViaAPI() response = %#v, want completed new-run", response)
 	}
 }
 

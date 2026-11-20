@@ -84,9 +84,10 @@ func runMCP(cmd *cobra.Command, args []string) error {
 	// Create engines
 	diffEngine := diff.NewEngine(traceStore)
 	replayEngine := replay.NewEngine(replay.EngineConfig{
-		Store:        traceStore,
-		PetalFlowURL: "http://localhost:8080",
-		Logger:       logger,
+		Store:          traceStore,
+		PetalFlowURL:   cfg.PetalFlow.URL,
+		PetalFlowToken: os.Getenv("PETALFLOW_API_TOKEN"),
+		Logger:         logger,
 	})
 
 	// Create MCP server

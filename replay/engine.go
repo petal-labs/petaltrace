@@ -23,9 +23,10 @@ type Engine struct {
 
 // EngineConfig configures the replay engine
 type EngineConfig struct {
-	Store        store.TraceStore
-	PetalFlowURL string
-	Logger       *slog.Logger
+	Store          store.TraceStore
+	PetalFlowURL   string
+	PetalFlowToken string
+	Logger         *slog.Logger
 }
 
 // NewEngine creates a new replay engine
@@ -38,16 +39,18 @@ func NewEngine(cfg EngineConfig) *Engine {
 		store:     cfg.Store,
 		validator: NewRequestValidator(cfg.Store),
 		liveReplayer: NewLiveReplayer(LiveReplayerConfig{
-			Store:        cfg.Store,
-			PetalFlowURL: cfg.PetalFlowURL,
+			Store:          cfg.Store,
+			PetalFlowURL:   cfg.PetalFlowURL,
+			PetalFlowToken: cfg.PetalFlowToken,
 		}),
 		mockedReplayer: NewMockedReplayer(MockedReplayerConfig{
 			Store:        cfg.Store,
 			PetalFlowURL: cfg.PetalFlowURL,
 		}),
 		hybridReplayer: NewHybridReplayer(HybridReplayerConfig{
-			Store:        cfg.Store,
-			PetalFlowURL: cfg.PetalFlowURL,
+			Store:          cfg.Store,
+			PetalFlowURL:   cfg.PetalFlowURL,
+			PetalFlowToken: cfg.PetalFlowToken,
 		}),
 		diffEngine: diff.NewEngine(cfg.Store),
 		logger:     cfg.Logger,

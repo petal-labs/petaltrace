@@ -105,7 +105,11 @@ func BuildMockProvider(captured *CapturedData) *MockProvider {
 		}
 
 		toolID := span.ID
-		if span.Tool.ToolUseID != nil && *span.Tool.ToolUseID != "" {
+		if span.Node != nil && span.Node.NodeID != "" {
+			toolID = span.Node.NodeID
+		} else if nodeID, ok := span.Attributes["petalflow.node_id"].(string); ok && nodeID != "" {
+			toolID = nodeID
+		} else if span.Tool.ToolUseID != nil && *span.Tool.ToolUseID != "" {
 			toolID = *span.Tool.ToolUseID
 		}
 

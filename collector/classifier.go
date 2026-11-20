@@ -56,26 +56,34 @@ func (c *Classifier) determineKind(in *IngestedSpan) store.SpanKind {
 	attrs := in.Attributes
 
 	// Check for GenAI semantic conventions (LLM spans)
-	if hasAttr(attrs, "gen_ai.system") || hasAttr(attrs, "gen_ai.request.model") {
+	if hasAttr(attrs, "gen_ai.system") || hasAttr(attrs, "gen_ai.provider.name") ||
+		hasAttr(attrs, "gen_ai.request.model") {
 		return store.SpanKindLLM
 	}
 
+	// PetalFlow v1 tool spans also carry node identity attributes.
+	if operation, ok := getStringAttr(attrs, "gen_ai.operation.name"); ok && operation == "execute_tool" {
+		return store.SpanKindTool
+	}
+
 	// Check for PetalFlow node spans
-	if hasAttr(attrs, "petalflow.node.id") || hasAttr(attrs, "petalflow.node.type") {
+	if hasAttr(attrs, "petalflow.node.id") || hasAttr(attrs, "petalflow.node_id") ||
+		hasAttr(attrs, "petalflow.node.type") || hasAttr(attrs, "petalflow.node_kind") {
 		// If it's a node that also has LLM attributes, check for nested structure
-		if hasAttr(attrs, "petalflow.edge.source") {
+		if hasAttr(attrs, "petalflow.edge.source") || hasAttr(attrs, "petalflow.edge.source_node") {
 			return store.SpanKindEdge
 		}
 		return store.SpanKindNode
 	}
 
 	// Check for tool invocations
-	if hasAttr(attrs, "tool.name") || hasAttr(attrs, "petalflow.tool.name") {
+	if hasAttr(attrs, "tool.name") || hasAttr(attrs, "petalflow.tool.name") || hasAttr(attrs, "gen_ai.tool.name") {
 		return store.SpanKindTool
 	}
 
 	// Check for edge spans
-	if hasAttr(attrs, "petalflow.edge.source") || hasAttr(attrs, "petalflow.edge.target") {
+	if hasAttr(attrs, "petalflow.edge.source") || hasAttr(attrs, "petalflow.edge.target") ||
+		hasAttr(attrs, "petalflow.edge.source_node") || hasAttr(attrs, "petalflow.edge.target_node") {
 		return store.SpanKindEdge
 	}
 
@@ -127,7 +135,7 @@ func (c *Classifier) extractLLMData(in *IngestedSpan) *store.LLMSpanData {
 	llm := &store.LLMSpanData{}
 
 	// Provider and model
-	if v, ok := getStringAttr(attrs, "gen_ai.system"); ok {
+	if v, ok := getStringAttrAny(attrs, "gen_ai.provider.name", "gen_ai.system"); ok {
 		llm.Provider = v
 	}
 	if v, ok := getStringAttr(attrs, "gen_ai.request.model"); ok {
@@ -148,15 +156,22 @@ func (c *Classifier) extractLLMData(in *IngestedSpan) *store.LLMSpanData {
 	}
 	if v, ok := getStringAttr(attrs, "gen_ai.system_prompt"); ok {
 		llm.SystemPrompt = v
+	} else if v, ok := getStringAttr(attrs, "petalflow.llm.system_prompt"); ok {
+		llm.SystemPrompt = v
 	}
 
 	// Messages array
 	if msgs, ok := attrs["gen_ai.messages"]; ok {
 		llm.Messages = c.parseMessages(msgs)
+	} else if msgs, ok := attrs["petalflow.llm.messages"]; ok {
+		llm.Messages = c.parseMessages(msgs)
 	}
 
 	// Completion
 	if v, ok := getStringAttr(attrs, "gen_ai.completion"); ok {
+		llm.Completion.TextContent = v
+		llm.Completion.Content, _ = json.Marshal(v)
+	} else if v, ok := getStringAttr(attrs, "petalflow.llm.completion"); ok {
 		llm.Completion.TextContent = v
 		llm.Completion.Content, _ = json.Marshal(v)
 	}
@@ -267,10 +282,10 @@ func (c *Classifier) extractNodeData(in *IngestedSpan) *store.NodeSpanData {
 	attrs := in.Attributes
 	node := &store.NodeSpanData{}
 
-	if v, ok := getStringAttr(attrs, "petalflow.node.id"); ok {
+	if v, ok := getStringAttrAny(attrs, "petalflow.node.id", "petalflow.node_id"); ok {
 		node.NodeID = v
 	}
-	if v, ok := getStringAttr(attrs, "petalflow.node.type"); ok {
+	if v, ok := getStringAttrAny(attrs, "petalflow.node.type", "petalflow.node_kind"); ok {
 		node.NodeType = v
 	}
 	if v, ok := getIntAttr(attrs, "petalflow.node.retry_count"); ok {
@@ -279,13 +294,13 @@ func (c *Classifier) extractNodeData(in *IngestedSpan) *store.NodeSpanData {
 
 	// Inputs/outputs/config as JSON
 	if v, ok := attrs["petalflow.node.inputs"]; ok {
-		node.Inputs, _ = json.Marshal(v)
+		node.Inputs = snapshotJSON(v)
 	}
 	if v, ok := attrs["petalflow.node.outputs"]; ok {
-		node.Outputs, _ = json.Marshal(v)
+		node.Outputs = snapshotJSON(v)
 	}
 	if v, ok := attrs["petalflow.node.config"]; ok {
-		node.Config, _ = json.Marshal(v)
+		node.Config = snapshotJSON(v)
 	}
 
 	return node
@@ -298,9 +313,7 @@ func (c *Classifier) extractToolData(in *IngestedSpan) *store.ToolSpanData {
 	}
 
 	// Try both naming conventions
-	if v, ok := getStringAttr(attrs, "tool.name"); ok {
-		tool.ToolName = v
-	} else if v, ok := getStringAttr(attrs, "petalflow.tool.name"); ok {
+	if v, ok := getStringAttrAny(attrs, "tool.name", "petalflow.tool.name", "gen_ai.tool.name"); ok {
 		tool.ToolName = v
 	}
 
@@ -318,15 +331,15 @@ func (c *Classifier) extractToolData(in *IngestedSpan) *store.ToolSpanData {
 
 	// Inputs/outputs
 	if v, ok := attrs["tool.inputs"]; ok {
-		tool.Inputs, _ = json.Marshal(v)
+		tool.Inputs = snapshotJSON(v)
 	} else if v, ok := attrs["petalflow.tool.inputs"]; ok {
-		tool.Inputs, _ = json.Marshal(v)
+		tool.Inputs = snapshotJSON(v)
 	}
 
 	if v, ok := attrs["tool.outputs"]; ok {
-		tool.Outputs, _ = json.Marshal(v)
+		tool.Outputs = snapshotJSON(v)
 	} else if v, ok := attrs["petalflow.tool.outputs"]; ok {
-		tool.Outputs, _ = json.Marshal(v)
+		tool.Outputs = snapshotJSON(v)
 	}
 
 	// Invocation context
@@ -344,19 +357,19 @@ func (c *Classifier) extractEdgeData(in *IngestedSpan) *store.EdgeSpanData {
 	attrs := in.Attributes
 	edge := &store.EdgeSpanData{}
 
-	if v, ok := getStringAttr(attrs, "petalflow.edge.source"); ok {
+	if v, ok := getStringAttrAny(attrs, "petalflow.edge.source", "petalflow.edge.source_node"); ok {
 		edge.SourceNode = v
 	}
 	if v, ok := getStringAttr(attrs, "petalflow.edge.source_port"); ok {
 		edge.SourcePort = v
 	}
-	if v, ok := getStringAttr(attrs, "petalflow.edge.target"); ok {
+	if v, ok := getStringAttrAny(attrs, "petalflow.edge.target", "petalflow.edge.target_node"); ok {
 		edge.TargetNode = v
 	}
 	if v, ok := getStringAttr(attrs, "petalflow.edge.target_port"); ok {
 		edge.TargetPort = v
 	}
-	if v, ok := getIntAttr(attrs, "petalflow.edge.data_size"); ok {
+	if v, ok := getIntAttrAny(attrs, "petalflow.edge.data_size", "petalflow.edge.data_size_bytes"); ok {
 		edge.DataSize = int64(v)
 	}
 	if v, ok := getStringAttr(attrs, "petalflow.edge.data_preview"); ok {
@@ -382,6 +395,15 @@ func getStringAttr(attrs map[string]any, key string) (string, bool) {
 	return s, ok
 }
 
+func getStringAttrAny(attrs map[string]any, keys ...string) (string, bool) {
+	for _, key := range keys {
+		if value, ok := getStringAttr(attrs, key); ok {
+			return value, true
+		}
+	}
+	return "", false
+}
+
 func getIntAttr(attrs map[string]any, key string) (int, bool) {
 	v, ok := attrs[key]
 	if !ok {
@@ -398,6 +420,15 @@ func getIntAttr(attrs map[string]any, key string) (int, bool) {
 	default:
 		return 0, false
 	}
+}
+
+func getIntAttrAny(attrs map[string]any, keys ...string) (int, bool) {
+	for _, key := range keys {
+		if value, ok := getIntAttr(attrs, key); ok {
+			return value, true
+		}
+	}
+	return 0, false
 }
 
 func getFloat64Attr(attrs map[string]any, key string) (float64, bool) {

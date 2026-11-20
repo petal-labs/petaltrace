@@ -70,6 +70,7 @@ func TestBuildMockProvider(t *testing.T) {
 		ToolSpans: []*store.Span{
 			{
 				ID:     "tool-span-1",
+				Node:   &store.NodeSpanData{NodeID: "calculator-node"},
 				Status: store.SpanStatusOK,
 				Tool: &store.ToolSpanData{
 					ToolName:  "calculator",
@@ -133,10 +134,10 @@ func TestBuildMockProvider(t *testing.T) {
 		t.Errorf("len(ToolResults) = %d, want 2", len(mock.ToolResults))
 	}
 
-	// Check first tool result (keyed by tool use ID)
-	toolResult, ok := mock.ToolResults[toolID]
+	// PetalFlow v1 hybrid replay keys tool results by workflow node ID.
+	toolResult, ok := mock.ToolResults["calculator-node"]
 	if !ok {
-		t.Error("expected tool result for tool-use-123")
+		t.Error("expected tool result for calculator-node")
 	} else {
 		if toolResult.ToolName != "calculator" {
 			t.Errorf("ToolName = %q, want %q", toolResult.ToolName, "calculator")
